@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { Env, Variables } from "./types.js";
 import { corsMiddleware } from "./middleware/cors.js";
-import { errorHandler } from "./middleware/error-handler.js";
+import { AppError, errorResponse } from "./middleware/error-handler.js";
 import { auth as authRoutes } from "./routes/auth.js";
 import creditsRoutes from "./routes/credits.js";
 import settingsRoutes from "./routes/settings.js";
@@ -18,7 +18,15 @@ app.use("*", async (c, next) => {
   const corsHandler = corsMiddleware(c.env.CORS_ORIGIN);
   return corsHandler(c, next);
 });
-app.use("*", errorHandler());
+
+// Global error handler — uses app.onError to catch errors from all sub-routers
+app.onError((err, c) => {
+  if (err instanceof AppError) {
+    return errorResponse(c, err.code, err.message);
+  }
+  console.error("Unhandled error:", err);
+  return errorResponse(c, "INTERNAL_ERROR", "An unexpected error occurred");
+});
 
 // Health check
 app.get("/api/health", (c) => c.json({ status: "ok" }));
