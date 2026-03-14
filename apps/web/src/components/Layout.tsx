@@ -48,6 +48,25 @@ export default function Layout() {
                 Explore
               </NavLink>
 
+              {/* Pricing — always visible */}
+              <NavLink
+                to="/pricing"
+                className={({ isActive }) =>
+                  `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    isActive
+                      ? "text-white"
+                      : "text-gray-400 hover:text-white"
+                  }`
+                }
+                style={({ isActive }) =>
+                  isActive
+                    ? { backgroundColor: "var(--color-surface-3)" }
+                    : undefined
+                }
+              >
+                Pricing
+              </NavLink>
+
               {/* Authenticated-only nav links */}
               {isAuthenticated && (
                 <>

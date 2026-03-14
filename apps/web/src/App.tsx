@@ -23,6 +23,11 @@ const Library = lazy(() => import("./pages/Library"));
 // Public pages with layout — code-split
 const Explore = lazy(() => import("./pages/Explore"));
 const Profile = lazy(() => import("./pages/Profile"));
+const Pricing = lazy(() => import("./pages/Pricing"));
+
+// Billing pages — code-split
+const Billing = lazy(() => import("./pages/Billing"));
+const BillingCallback = lazy(() => import("./pages/BillingCallback"));
 
 function PageSpinner() {
   return (
@@ -48,16 +53,21 @@ export default function App() {
         <Route element={<Layout />}>
           <Route path="/explore" element={<Explore />} />
           <Route path="/profile/:username" element={<Profile />} />
+          <Route path="/pricing" element={<Pricing />} />
         </Route>
 
         {/* Protected routes */}
         <Route element={<AuthGuard />}>
+          {/* BillingCallback: protected but no layout — it auto-redirects */}
+          <Route path="/billing/callback" element={<BillingCallback />} />
+
           <Route element={<Layout />}>
             <Route path="/studio" element={<Studio />} />
             <Route path="/studio/song/:id" element={<SongView />} />
             <Route path="/library" element={<Library />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/billing" element={<Billing />} />
           </Route>
         </Route>
       </Routes>

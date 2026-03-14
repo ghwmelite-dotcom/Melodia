@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router";
 import { useAuth } from "../hooks/useAuth";
 import { useApi } from "../hooks/useApi";
 import { api } from "../lib/api";
@@ -192,7 +193,7 @@ export default function Settings() {
         </form>
       </div>
 
-      {/* Plan card */}
+      {/* Subscription card */}
       <div
         className="rounded-2xl p-6 border"
         style={{
@@ -200,7 +201,17 @@ export default function Settings() {
           borderColor: "var(--color-surface-3)",
         }}
       >
-        <h2 className="text-base font-semibold text-white mb-4">Subscription</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold text-white">Subscription</h2>
+          <Link
+            to="/billing"
+            className="text-sm font-medium transition-colors hover:opacity-80"
+            style={{ color: "var(--color-teal)" }}
+          >
+            Manage →
+          </Link>
+        </div>
+
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm text-gray-400">Current plan</p>
@@ -226,16 +237,23 @@ export default function Settings() {
         </div>
 
         {plan === "free" && (
-          <div
-            className="mt-4 p-3 rounded-xl text-sm"
-            style={{
-              backgroundColor: "rgba(240, 165, 0, 0.06)",
-              border: "1px solid rgba(240, 165, 0, 0.15)",
-              color: "#d1a44a",
-            }}
-          >
-            Upgrade to Pro for unlimited generations and priority processing. Billing coming
-            in Sub-project 3.
+          <div className="mt-4 flex items-center justify-between gap-4">
+            <p
+              className="text-sm"
+              style={{ color: "#d1a44a" }}
+            >
+              Upgrade for more daily songs, WAV downloads, and commercial license.
+            </p>
+            <Link
+              to="/pricing"
+              className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold transition-all hover:opacity-90 active:scale-95"
+              style={{
+                backgroundColor: "var(--color-amber)",
+                color: "var(--color-charcoal)",
+              }}
+            >
+              Upgrade
+            </Link>
           </div>
         )}
       </div>
