@@ -2,6 +2,26 @@
 export const PLANS = ["free", "creator", "pro", "enterprise"] as const;
 export type Plan = (typeof PLANS)[number];
 
+export const PLAN_CREDITS: Record<string, number> = {
+  free: 5,
+  creator: 50,
+  pro: -1,
+  enterprise: -1,
+};
+
+export const PLAN_PRICES: Record<string, number> = {
+  free: 0,
+  creator: 15000,
+  pro: 45000,
+};
+
+export const PLAN_FEATURES: Record<string, string[]> = {
+  free: ["5 songs per day", "MP3 download only", "Non-commercial license"],
+  creator: ["50 songs per day", "WAV + MP3 download", "Stem separation", "Commercial license"],
+  pro: ["Unlimited songs", "WAV + MP3 + FLAC", "Full stems", "Commercial license", "API access", "Priority generation"],
+  enterprise: ["Everything in Pro", "Dedicated GPU", "Custom model fine-tuning", "White-label", "SLA guarantees"],
+};
+
 // Song statuses
 export const SONG_STATUSES = [
   "pending",

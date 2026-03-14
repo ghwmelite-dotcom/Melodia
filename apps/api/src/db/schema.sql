@@ -12,6 +12,9 @@ CREATE TABLE IF NOT EXISTS users (
   plan TEXT DEFAULT 'free' CHECK (plan IN ('free', 'creator', 'pro', 'enterprise')),
   credits_remaining INTEGER DEFAULT 5,
   credits_reset_at TEXT,
+  paystack_customer_code TEXT,
+  paystack_subscription_code TEXT,
+  plan_expires_at TEXT,
   is_verified BOOLEAN DEFAULT FALSE,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
@@ -145,3 +148,21 @@ CREATE INDEX IF NOT EXISTS idx_credits_user ON credit_transactions(user_id);
 CREATE INDEX IF NOT EXISTS idx_song_likes_user ON song_likes(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_songs_public_new ON songs(is_public, id DESC);
 CREATE INDEX IF NOT EXISTS idx_songs_public_genre ON songs(is_public, genre, play_count DESC);
+
+-- Payments
+CREATE TABLE IF NOT EXISTS payments (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  paystack_reference TEXT UNIQUE NOT NULL,
+  amount INTEGER NOT NULL,
+  currency TEXT DEFAULT 'GHS',
+  status TEXT NOT NULL CHECK (status IN ('success', 'failed', 'pending')),
+  plan TEXT NOT NULL,
+  period_start TEXT,
+  period_end TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_payments_user ON payments(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_users_paystack_sub ON users(paystack_subscription_code);
+CREATE INDEX IF NOT EXISTS idx_users_paystack_cust ON users(paystack_customer_code);
