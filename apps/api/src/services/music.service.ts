@@ -7,8 +7,9 @@ import type { SongBlueprint } from "./blueprint.service.js";
 // ---------------------------------------------------------------------------
 
 export type MusicResult = {
-  audioKey: string;
-  seed: number;
+  audioKeys: string[];
+  seeds: number[];
+  variationCount: number;
 };
 
 // ---------------------------------------------------------------------------
@@ -102,21 +103,11 @@ async function generateRealMusic(
   env: Env,
   blueprint: SongBlueprint,
   lyrics: string,
-  songId: string
+  songId: string,
+  batchSize: number,
+  timeoutMs?: number
 ): Promise<MusicResult> {
-  const signal = AbortSignal.timeout(STAGE_TIMEOUTS.MUSIC);
-
-  const payload = {
-    tags: blueprint.style_tags,
-    lyrics,
-    duration: blueprint.duration,
-    seed: -1,
-    model: "turbo",
-    infer_step: 8,
-    guidance_scale: 15.0,
-    scheduler_type: "euler",
-    batch_size: 1,
-  };
+  const musicTimeout = timeoutMs ?? STAGE_TIMEOUTS.MUSIC * Math.min(batchSize, 2);
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -125,30 +116,54 @@ async function generateRealMusic(
     headers["Authorization"] = `Bearer ${env.ACE_STEP_API_KEY}`;
   }
 
-  const response = await fetch(`${env.ACE_STEP_API_URL}/api/generate`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(payload),
-    signal,
-  });
+  const audioKeys: string[] = [];
+  const seeds: number[] = [];
 
-  if (!response.ok) {
-    const errText = await response.text().catch(() => "unknown error");
-    throw new Error(`ACE-Step API returned ${response.status}: ${errText}`);
+  // Call ACE-Step batchSize times with different seeds to ensure multi-variation
+  // works regardless of whether the API supports batch_size > 1 natively.
+  for (let i = 0; i < batchSize; i++) {
+    const signal = AbortSignal.timeout(musicTimeout);
+
+    const payload = {
+      tags: blueprint.style_tags,
+      lyrics,
+      duration: blueprint.duration,
+      seed: i, // different seed per variation
+      model: "turbo",
+      infer_step: 8,
+      guidance_scale: 15.0,
+      scheduler_type: "euler",
+      batch_size: 1,
+    };
+
+    const response = await fetch(`${env.ACE_STEP_API_URL}/api/generate`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+      signal,
+    });
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => "unknown error");
+      throw new Error(`ACE-Step API returned ${response.status}: ${errText}`);
+    }
+
+    const audioBuffer = await response.arrayBuffer();
+    const audioKey = `audio/${songId}/variation_${i}.wav`;
+
+    await env.R2_BUCKET.put(audioKey, audioBuffer, {
+      httpMetadata: { contentType: "audio/wav" },
+    });
+
+    // Try to read seed from response headers
+    const seedHeader = response.headers.get("x-seed") ?? response.headers.get("x-ace-step-seed");
+    const seed = seedHeader ? parseInt(seedHeader, 10) || i : i;
+
+    audioKeys.push(audioKey);
+    seeds.push(seed);
   }
 
-  const audioBuffer = await response.arrayBuffer();
-  const audioKey = `audio/${songId}/variation_0.wav`;
-
-  await env.R2_BUCKET.put(audioKey, audioBuffer, {
-    httpMetadata: { contentType: "audio/wav" },
-  });
-
-  // Try to read seed from response headers
-  const seedHeader = response.headers.get("x-seed") ?? response.headers.get("x-ace-step-seed");
-  const seed = seedHeader ? parseInt(seedHeader, 10) || 0 : 0;
-
-  return { audioKey, seed };
+  return { audioKeys, seeds, variationCount: batchSize };
 }
 
 // ---------------------------------------------------------------------------
@@ -158,18 +173,27 @@ async function generateRealMusic(
 async function generateMockMusic(
   env: Env,
   blueprint: SongBlueprint,
-  songId: string
+  songId: string,
+  batchSize: number
 ): Promise<MusicResult> {
   console.warn("ACE-Step not configured, using mock audio");
 
-  const wavData = buildMockWav(blueprint.duration);
-  const audioKey = `audio/${songId}/variation_0.wav`;
+  const audioKeys: string[] = [];
+  const seeds: number[] = [];
 
-  await env.R2_BUCKET.put(audioKey, wavData, {
-    httpMetadata: { contentType: "audio/wav" },
-  });
+  for (let i = 0; i < batchSize; i++) {
+    const wavData = buildMockWav(blueprint.duration);
+    const audioKey = `audio/${songId}/variation_${i}.wav`;
 
-  return { audioKey, seed: 0 };
+    await env.R2_BUCKET.put(audioKey, wavData, {
+      httpMetadata: { contentType: "audio/wav" },
+    });
+
+    audioKeys.push(audioKey);
+    seeds.push(i);
+  }
+
+  return { audioKeys, seeds, variationCount: batchSize };
 }
 
 // ---------------------------------------------------------------------------
@@ -180,10 +204,12 @@ export async function generateMusic(
   env: Env,
   blueprint: SongBlueprint,
   lyrics: string,
-  songId: string
+  songId: string,
+  batchSize = 1,
+  timeoutMs?: number
 ): Promise<MusicResult> {
   if (env.ACE_STEP_API_URL) {
-    return generateRealMusic(env, blueprint, lyrics, songId);
+    return generateRealMusic(env, blueprint, lyrics, songId, batchSize, timeoutMs);
   }
-  return generateMockMusic(env, blueprint, songId);
+  return generateMockMusic(env, blueprint, songId, batchSize);
 }
