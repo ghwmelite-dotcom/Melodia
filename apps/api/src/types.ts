@@ -12,6 +12,12 @@ export type Env = {
   CORS_ORIGIN: string;
   MAX_FREE_SONGS_PER_DAY: string;
 
+  // Active in Sub-project 5
+  PAYSTACK_SECRET_KEY: string;
+  PAYSTACK_PUBLIC_KEY: string;
+  PAYSTACK_PLAN_CREATOR: string;
+  PAYSTACK_PLAN_PRO: string;
+
   // Forward-declared for Sub-project 2+ (not bound in wrangler.toml yet)
   R2_BUCKET: R2Bucket;
   AI: Ai;
