@@ -16,3 +16,19 @@ id = "local"
 ENVIRONMENT = "development"
 CORS_ORIGIN = "http://localhost:5173"
 MAX_FREE_SONGS_PER_DAY = "5"
+
+[ai]
+binding = "AI"
+
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "melodia-assets"
+
+[durable_objects]
+bindings = [
+  { name = "SONG_SESSION", class_name = "SongGenerationSession" }
+]
+
+[[migrations]]
+tag = "v1"
+new_classes = ["SongGenerationSession"]
