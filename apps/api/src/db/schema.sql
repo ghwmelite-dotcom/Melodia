@@ -111,7 +111,7 @@ CREATE TABLE IF NOT EXISTS credit_transactions (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   amount INTEGER NOT NULL,
-  reason TEXT NOT NULL CHECK (reason IN ('song_generation', 'daily_reset', 'purchase', 'referral', 'signup_bonus')),
+  reason TEXT NOT NULL CHECK (reason IN ('song_generation', 'generation_refund', 'daily_reset', 'purchase', 'referral', 'signup_bonus')),
   song_id TEXT REFERENCES songs(id),
   created_at TEXT DEFAULT (datetime('now'))
 );
