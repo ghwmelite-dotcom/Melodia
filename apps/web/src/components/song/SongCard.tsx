@@ -1,11 +1,19 @@
 import { Link } from "react-router";
 import type { Song } from "@melodia/shared";
+import { LikeButton } from "./LikeButton.js";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 type SongCardProps = {
   song: Song;
   compact?: boolean;
+  // Social / explore props
+  creatorUsername?: string;
+  likeCount?: number;
+  playCount?: number;
+  isLiked?: boolean;
+  songId?: string;
+  showSocialStats?: boolean;
 };
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -95,9 +103,33 @@ function StatusBadge({ status, generating }: { status: Song["status"]; generatin
   );
 }
 
+// ─── Play count icon ───────────────────────────────────────────────────────────
+
+function PlayCountIcon() {
+  return (
+    <svg
+      className="w-3.5 h-3.5 shrink-0"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path d="M8 5v14l11-7z" />
+    </svg>
+  );
+}
+
 // ─── Component ─────────────────────────────────────────────────────────────────
 
-export function SongCard({ song, compact = false }: SongCardProps) {
+export function SongCard({
+  song,
+  compact = false,
+  creatorUsername,
+  likeCount,
+  playCount,
+  isLiked,
+  songId,
+  showSocialStats = false,
+}: SongCardProps) {
   const generating = isGenerating(song.status);
   const gradient = getGradient(song.genre);
 
@@ -143,8 +175,23 @@ export function SongCard({ song, compact = false }: SongCardProps) {
       <div className={`${compact ? "p-2" : "p-3"}`}>
         <p className="text-white font-medium text-sm line-clamp-1">{song.title}</p>
 
-        {song.genre && (
+        {/* Creator username */}
+        {showSocialStats && creatorUsername && (
+          <Link
+            to={`/profile/${creatorUsername}`}
+            onClick={(e) => e.stopPropagation()}
+            className="text-gray-400 text-xs mt-0.5 hover:text-amber transition-colors"
+          >
+            @{creatorUsername}
+          </Link>
+        )}
+
+        {song.genre && !creatorUsername && (
           <p className="text-gray-400 text-xs mt-0.5 capitalize">{song.genre}</p>
+        )}
+
+        {song.genre && creatorUsername && (
+          <p className="text-gray-500 text-xs capitalize">{song.genre}</p>
         )}
 
         {/* Duration — hidden in compact mode */}
@@ -152,6 +199,30 @@ export function SongCard({ song, compact = false }: SongCardProps) {
           <p className="text-gray-500 text-xs mt-1 tabular-nums">
             {formatDuration(song.duration_seconds)}
           </p>
+        )}
+
+        {/* Social stats row */}
+        {showSocialStats && (
+          <div className="flex items-center justify-between mt-2">
+            <div className="flex items-center gap-3 text-xs text-gray-400">
+              {/* Play count */}
+              {playCount !== undefined && (
+                <span className="flex items-center gap-1">
+                  <PlayCountIcon />
+                  <span className="tabular-nums">{playCount}</span>
+                </span>
+              )}
+            </div>
+
+            {/* Like button — stop propagation so card link doesn't fire */}
+            {songId && likeCount !== undefined && (
+              <LikeButton
+                songId={songId}
+                initialLiked={isLiked ?? false}
+                initialCount={likeCount}
+              />
+            )}
+          </div>
         )}
       </div>
     </Link>

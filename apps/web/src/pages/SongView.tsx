@@ -6,6 +6,7 @@ import { GenerationProgress } from "../components/song/GenerationProgress.js";
 import { WaveformPlayer } from "../components/player/WaveformPlayer.js";
 import { LyricsDisplay } from "../components/song/LyricsDisplay.js";
 import { SongMeta } from "../components/song/SongMeta.js";
+import { LikeButton } from "../components/song/LikeButton.js";
 import type { SongDetail } from "@melodia/shared";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -60,12 +61,35 @@ function Spinner() {
   );
 }
 
+// ─── Visibility Badge ──────────────────────────────────────────────────────────
+
+function VisibilityBadge({ isPublic }: { isPublic: boolean }) {
+  if (isPublic) {
+    return (
+      <span
+        className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+        style={{ backgroundColor: "rgba(0,210,255,0.15)", color: "var(--color-teal)" }}
+      >
+        Public
+      </span>
+    );
+  }
+  return (
+    <span
+      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+      style={{ backgroundColor: "var(--color-surface-3)", color: "#9ca3af" }}
+    >
+      Private
+    </span>
+  );
+}
+
 // ─── Component ─────────────────────────────────────────────────────────────────
 
 export default function SongView() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { refresh } = useAuth();
+  const { user, refresh } = useAuth();
   const songs = useSongs();
 
   const [song, setSong] = useState<SongDetail | null>(null);
@@ -74,6 +98,7 @@ export default function SongView() {
   );
   const [deleteConfirming, setDeleteConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [publishToggling, setPublishToggling] = useState(false);
 
   // Fetch song details
   const fetchSong = useCallback(async () => {
@@ -110,6 +135,20 @@ export default function SongView() {
       setDeleteConfirming(false);
     }
   }, [id, songs, navigate]);
+
+  // Toggle publish state
+  const handlePublishToggle = useCallback(async () => {
+    if (!song || publishToggling) return;
+    setPublishToggling(true);
+    try {
+      const updated = await songs.updateSong(song.id, { is_public: !song.is_public });
+      setSong(updated);
+    } catch {
+      // Silently fail — keep current state
+    } finally {
+      setPublishToggling(false);
+    }
+  }, [song, songs, publishToggling]);
 
   // ── Loading ──
 
@@ -250,6 +289,9 @@ export default function SongView() {
 
   // ── Completed mode ──
 
+  const isOwner = user?.id === song.user_id;
+  const isLikedByMe = (song as SongDetail & { is_liked?: boolean }).is_liked ?? false;
+
   // Parse waveform data from waveform_url: for MVP we pass null and let the
   // player show the flat fallback — the actual waveform JSON fetch would
   // require a new API endpoint.
@@ -268,7 +310,7 @@ export default function SongView() {
         Library
       </Link>
 
-      {/* Top section: artwork + title info + delete */}
+      {/* Top section: artwork + title info + actions */}
       <div className="flex flex-col sm:flex-row gap-5">
         {/* Artwork */}
         <div className="shrink-0">
@@ -298,7 +340,11 @@ export default function SongView() {
 
         {/* Song info */}
         <div className="flex-1 min-w-0 space-y-2">
-          <h1 className="text-3xl font-bold text-white truncate">{song.title}</h1>
+          {/* Title + visibility badge */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-3xl font-bold text-white truncate">{song.title}</h1>
+            {isOwner && <VisibilityBadge isPublic={song.is_public} />}
+          </div>
 
           {/* Genre / sub-genre */}
           <p className="text-gray-400 capitalize">
@@ -333,44 +379,90 @@ export default function SongView() {
             )}
           </div>
 
-          {/* Delete button */}
-          <div className="pt-2">
-            {!deleteConfirming ? (
+          {/* Action row: publish toggle (owner) + like button (non-owner, public) + delete (owner) */}
+          <div className="pt-2 flex flex-wrap items-center gap-3">
+            {/* Publish toggle — only for owner */}
+            {isOwner && (
               <button
-                onClick={() => setDeleteConfirming(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors"
-                style={{
-                  backgroundColor: "rgba(255,107,107,0.1)",
-                  color: "var(--color-coral)",
-                }}
+                onClick={() => void handlePublishToggle()}
+                disabled={publishToggling}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer"
+                style={
+                  song.is_public
+                    ? { backgroundColor: "rgba(0,210,255,0.1)", color: "var(--color-teal)" }
+                    : { backgroundColor: "var(--color-surface-2)", color: "#9ca3af" }
+                }
               >
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                  <path d="M3 6h18M19 6l-1 14H6L5 6M10 11v6M14 11v6M9 6V4h6v2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                Delete
+                {publishToggling ? (
+                  <span>Saving…</span>
+                ) : song.is_public ? (
+                  <>
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" strokeLinecap="round" strokeLinejoin="round" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                    Make Private
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" strokeLinecap="round" strokeLinejoin="round" />
+                      <line x1="1" y1="1" x2="23" y2="23" strokeLinecap="round" />
+                    </svg>
+                    Make Public
+                  </>
+                )}
               </button>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-400">Are you sure?</span>
+            )}
+
+            {/* Like button — only for non-owners on public songs */}
+            {!isOwner && song.is_public && (
+              <LikeButton
+                songId={song.id}
+                initialLiked={isLikedByMe}
+                initialCount={song.like_count}
+              />
+            )}
+
+            {/* Delete button — only for owner */}
+            {isOwner && (
+              !deleteConfirming ? (
                 <button
-                  onClick={() => void handleDelete()}
-                  disabled={deleting}
-                  className="px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-50 transition-colors"
+                  onClick={() => setDeleteConfirming(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors cursor-pointer"
                   style={{
-                    backgroundColor: "var(--color-coral)",
-                    color: "white",
+                    backgroundColor: "rgba(255,107,107,0.1)",
+                    color: "var(--color-coral)",
                   }}
                 >
-                  {deleting ? "Deleting…" : "Delete"}
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path d="M3 6h18M19 6l-1 14H6L5 6M10 11v6M14 11v6M9 6V4h6v2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  Delete
                 </button>
-                <button
-                  onClick={() => setDeleteConfirming(false)}
-                  className="px-3 py-1.5 rounded-lg text-sm text-gray-400 hover:text-white transition-colors"
-                  style={{ backgroundColor: "var(--color-surface-2)" }}
-                >
-                  Cancel
-                </button>
-              </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-400">Are you sure?</span>
+                  <button
+                    onClick={() => void handleDelete()}
+                    disabled={deleting}
+                    className="px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-50 transition-colors"
+                    style={{
+                      backgroundColor: "var(--color-coral)",
+                      color: "white",
+                    }}
+                  >
+                    {deleting ? "Deleting…" : "Delete"}
+                  </button>
+                  <button
+                    onClick={() => setDeleteConfirming(false)}
+                    className="px-3 py-1.5 rounded-lg text-sm text-gray-400 hover:text-white transition-colors"
+                    style={{ backgroundColor: "var(--color-surface-2)" }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )
             )}
           </div>
         </div>
