@@ -11,6 +11,8 @@ import artworkRoutes from "./routes/artwork.js";
 import playlistsRoutes from "./routes/playlists.js";
 import usersRoutes from "./routes/users.js";
 
+export { SongGenerationSession } from "./durable-objects/song-session.js";
+
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // Global middleware
@@ -46,4 +48,22 @@ app.notFound((c) =>
   c.json({ success: false, error: { code: "NOT_FOUND", message: "Route not found" } }, 404)
 );
 
-export default app;
+// Custom fetch handler — intercepts WebSocket upgrades for the DO,
+// passes everything else to Hono (with ctx so waitUntil() works in middleware).
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const url = new URL(request.url);
+
+    // WebSocket upgrade → forward to SongGenerationSession Durable Object
+    const wsMatch = url.pathname.match(/^\/api\/songs\/([^/]+)\/live$/);
+    if (wsMatch && request.headers.get("Upgrade") === "websocket") {
+      const songId = wsMatch[1];
+      const doId = env.SONG_SESSION.idFromName(songId);
+      const stub = env.SONG_SESSION.get(doId);
+      return stub.fetch(request);
+    }
+
+    // All other requests → Hono (include ctx for executionContext.waitUntil support)
+    return app.fetch(request, env, ctx);
+  },
+};
