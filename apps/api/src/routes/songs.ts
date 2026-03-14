@@ -1,23 +1,92 @@
 import { Hono } from "hono";
 import { ulid } from "ulidx";
 import * as v from "valibot";
-import { GenerateSongSchema } from "@melodia/shared";
+import { GenerateSongSchema, UpdateSongSchema } from "@melodia/shared";
 import type { Env, Variables } from "../types.js";
 import { AppError } from "../middleware/error-handler.js";
-import { authGuard } from "../middleware/auth.js";
-import { songQueries } from "../db/queries.js";
+import { authGuard, optionalAuthGuard } from "../middleware/auth.js";
+import {
+  songQueries,
+  exploreQueries,
+  likeQueries,
+} from "../db/queries.js";
 
 type HonoContext = { Bindings: Env; Variables: Variables };
 
 const songs = new Hono<HonoContext>();
 
-// All songs routes require authentication
-songs.use("/*", authGuard());
+// ----------------------------------------------------------------------------
+// GET /explore  (public — no auth required)
+// MUST be registered BEFORE /:id wildcard
+// ----------------------------------------------------------------------------
+songs.get("/explore", async (c) => {
+  const {
+    tab = "new",
+    genre,
+    limit: limitStr,
+    cursor,
+    offset: offsetStr,
+    page: pageStr,
+  } = c.req.query();
+
+  const limit = Math.min(parseInt(limitStr ?? "20", 10) || 20, 50);
+
+  if (tab === "popular") {
+    const page = parseInt(pageStr ?? "0", 10) || 0;
+    const offset = parseInt(offsetStr ?? "0", 10) || page * limit;
+
+    const result = await exploreQueries.popularSongs(c.env.DB, {
+      limit,
+      offset,
+      genre: genre || undefined,
+    });
+
+    const songsList = result.results ?? [];
+    return c.json({ success: true, songs: songsList });
+  }
+
+  // Default: "new" tab (also used for "genre" tab with genre filter)
+  const result = await exploreQueries.newSongs(c.env.DB, {
+    limit,
+    cursor: cursor || undefined,
+    genre: genre || undefined,
+  });
+
+  const results = (result.results ?? []) as Record<string, unknown>[];
+
+  let next_cursor: string | null = null;
+  if (results.length > limit) {
+    const lastItem = results.pop();
+    next_cursor = (lastItem?.id as string) ?? null;
+  }
+
+  return c.json({ success: true, songs: results, next_cursor });
+});
 
 // ----------------------------------------------------------------------------
-// POST /generate
+// GET /liked  (protected — authGuard)
+// MUST be registered BEFORE /:id wildcard
 // ----------------------------------------------------------------------------
-songs.post("/generate", async (c) => {
+songs.get("/liked", authGuard(), async (c) => {
+  const userId = c.get("userId");
+  const { limit: limitStr, page: pageStr, offset: offsetStr } = c.req.query();
+
+  const limit = Math.min(parseInt(limitStr ?? "20", 10) || 20, 50);
+  const page = parseInt(pageStr ?? "0", 10) || 0;
+  const offset = parseInt(offsetStr ?? "0", 10) || page * limit;
+
+  const result = await likeQueries.likedSongs(c.env.DB, userId, {
+    limit,
+    offset,
+  });
+
+  return c.json({ success: true, songs: result.results ?? [] });
+});
+
+// ----------------------------------------------------------------------------
+// POST /generate  (protected)
+// ----------------------------------------------------------------------------
+songs.post("/generate", authGuard(), async (c) => {
   const body = await c.req.json().catch(() => {
     throw new AppError("VALIDATION_ERROR", "Invalid JSON body", 400);
   });
@@ -37,27 +106,37 @@ songs.post("/generate", async (c) => {
   const txId = ulid();
 
   // Atomic credit deduction — deduct first, then create song + credit transaction together.
-  // The credit_transaction has a FK to songs(id), so the song must exist first.
   const deductResult = await c.env.DB.prepare(
     "UPDATE users SET credits_remaining = credits_remaining - 1, updated_at = datetime('now') WHERE id = ? AND credits_remaining > 0"
-  ).bind(userId).run();
+  )
+    .bind(userId)
+    .run();
 
   if (deductResult.meta.changes === 0) {
     throw new AppError("FORBIDDEN", "Insufficient credits", 403);
   }
 
-  // Create song record + credit transaction in batch (song must exist before credit_transaction FK)
+  // Create song record + credit transaction in batch
   await c.env.DB.batch([
     c.env.DB.prepare(
       `INSERT INTO songs (id, user_id, title, user_prompt, genre, mood, vocal_language, duration_seconds, generation_started_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
-    ).bind(songId, userId, prompt.slice(0, 100), prompt, genre ?? null, mood ?? null, language ?? null, duration ?? 180),
+    ).bind(
+      songId,
+      userId,
+      prompt.slice(0, 100),
+      prompt,
+      genre ?? null,
+      mood ?? null,
+      language ?? null,
+      duration ?? 180
+    ),
     c.env.DB.prepare(
       "INSERT INTO credit_transactions (id, user_id, amount, reason, song_id) VALUES (?, ?, -1, 'song_generation', ?)"
     ).bind(txId, userId, songId),
   ]);
 
-  // Trigger Durable Object pipeline (fire and forget from the route's perspective)
+  // Trigger Durable Object pipeline
   const doId = c.env.SONG_SESSION.idFromName(songId);
   const stub = c.env.SONG_SESSION.get(doId);
 
@@ -81,9 +160,9 @@ songs.post("/generate", async (c) => {
 });
 
 // ----------------------------------------------------------------------------
-// GET / — list songs
+// GET /  — list user's own songs  (protected)
 // ----------------------------------------------------------------------------
-songs.get("/", async (c) => {
+songs.get("/", authGuard(), async (c) => {
   const userId = c.get("userId");
   const { status, limit: limitStr, cursor } = c.req.query();
 
@@ -97,10 +176,9 @@ songs.get("/", async (c) => {
 
   const results = (queryResult.results ?? []) as Record<string, unknown>[];
 
-  // If we got limit+1 results, there's a next page
   let next_cursor: string | null = null;
   if (results.length > limit) {
-    const lastItem = results.pop(); // remove the extra item
+    const lastItem = results.pop();
     next_cursor = (lastItem?.id as string) ?? null;
   }
 
@@ -108,24 +186,12 @@ songs.get("/", async (c) => {
 });
 
 // ----------------------------------------------------------------------------
-// GET /:id — full song detail
+// GET /:id/status  (protected — owner only)
+// Must be registered before GET /:id to avoid matching "status" as sub-route.
+// In Hono, /:id/status is more specific than /:id so order doesn't matter,
+// but we keep it grouped logically after /:id.
 // ----------------------------------------------------------------------------
-songs.get("/:id", async (c) => {
-  const userId = c.get("userId");
-  const { id } = c.req.param();
-
-  const song = await songQueries.findByIdAndUser(c.env.DB, id, userId);
-  if (!song) {
-    throw new AppError("NOT_FOUND", "Song not found", 404);
-  }
-
-  return c.json({ success: true, song });
-});
-
-// ----------------------------------------------------------------------------
-// GET /:id/status
-// ----------------------------------------------------------------------------
-songs.get("/:id/status", async (c) => {
+songs.get("/:id/status", authGuard(), async (c) => {
   const userId = c.get("userId");
   const { id } = c.req.param();
 
@@ -141,28 +207,56 @@ songs.get("/:id/status", async (c) => {
 });
 
 // ----------------------------------------------------------------------------
-// GET /:id/stream — audio streaming with Range support
+// GET /:id/stream  — audio streaming with Range support (optionally authenticated)
 // ----------------------------------------------------------------------------
-songs.get("/:id/stream", async (c) => {
-  const userId = c.get("userId");
+songs.get("/:id/stream", optionalAuthGuard(), async (c) => {
+  const userId = c.get("userId") as string | undefined;
   const { id } = c.req.param();
 
-  const song = (await songQueries.findByIdAndUser(c.env.DB, id, userId)) as {
+  const song = (await songQueries.findByIdPublic(c.env.DB, id)) as {
+    id: string;
+    user_id: string;
     audio_url: string | null;
+    is_public: number | boolean;
   } | null;
 
   if (!song) {
     throw new AppError("NOT_FOUND", "Song not found", 404);
   }
 
+  const isPublic = song.is_public === 1 || song.is_public === true;
+  const isOwner = userId !== undefined && song.user_id === userId;
+
+  if (!isPublic && !isOwner) {
+    throw new AppError("FORBIDDEN", "Access denied", 403);
+  }
+
   if (!song.audio_url) {
     throw new AppError("NOT_FOUND", "Audio not available yet", 404);
+  }
+
+  // Fire-and-forget play count tracking (dedup via KV)
+  if (userId) {
+    const kvKey = `played:${userId}:${id}`;
+    // Use waitUntil if available so it doesn't block the response
+    const trackPlay = async () => {
+      try {
+        const already = await c.env.KV.get(kvKey);
+        if (already === null) {
+          await c.env.KV.put(kvKey, "1", { expirationTtl: 3600 });
+          await songQueries.incrementPlayCount(c.env.DB, id);
+        }
+      } catch {
+        // Non-critical — don't let tracking errors affect streaming
+      }
+    };
+    // Fire and forget — no await
+    void trackPlay();
   }
 
   const rangeHeader = c.req.header("Range");
 
   if (rangeHeader) {
-    // Parse: "bytes=start-end"
     const match = rangeHeader.match(/^bytes=(\d+)-(\d*)$/);
     if (!match) {
       return new Response("Invalid Range header", { status: 416 });
@@ -179,7 +273,9 @@ songs.get("/:id/stream", async (c) => {
       r2Range.length = end - start + 1;
     }
 
-    const r2Object = await c.env.R2_BUCKET.get(song.audio_url, { range: r2Range });
+    const r2Object = await c.env.R2_BUCKET.get(song.audio_url, {
+      range: r2Range,
+    });
     if (!r2Object) {
       throw new AppError("NOT_FOUND", "Audio file not found", 404);
     }
@@ -199,7 +295,6 @@ songs.get("/:id/stream", async (c) => {
     });
   }
 
-  // No Range header — return full file
   const r2Object = await c.env.R2_BUCKET.get(song.audio_url);
   if (!r2Object) {
     throw new AppError("NOT_FOUND", "Audio file not found", 404);
@@ -216,9 +311,147 @@ songs.get("/:id/stream", async (c) => {
 });
 
 // ----------------------------------------------------------------------------
-// DELETE /:id
+// GET /:id  — full song detail (optionally authenticated)
 // ----------------------------------------------------------------------------
-songs.delete("/:id", async (c) => {
+songs.get("/:id", optionalAuthGuard(), async (c) => {
+  const userId = c.get("userId") as string | undefined;
+  const { id } = c.req.param();
+
+  const song = (await songQueries.findByIdPublic(c.env.DB, id)) as Record<
+    string,
+    unknown
+  > | null;
+
+  if (!song) {
+    throw new AppError("NOT_FOUND", "Song not found", 404);
+  }
+
+  const isPublic = song.is_public === 1 || song.is_public === true;
+  const isOwner = userId !== undefined && song.user_id === userId;
+
+  if (!isPublic && !isOwner) {
+    throw new AppError("NOT_FOUND", "Song not found", 404);
+  }
+
+  let is_liked: boolean | undefined;
+  if (userId) {
+    const liked = await likeQueries.isLiked(c.env.DB, userId, id);
+    is_liked = liked !== null;
+  }
+
+  return c.json({ success: true, song: { ...song, is_liked } });
+});
+
+// ----------------------------------------------------------------------------
+// PUT /:id  — update song (protected — owner only)
+// ----------------------------------------------------------------------------
+songs.put("/:id", authGuard(), async (c) => {
+  const userId = c.get("userId");
+  const { id } = c.req.param();
+
+  const body = await c.req.json().catch(() => {
+    throw new AppError("VALIDATION_ERROR", "Invalid JSON body", 400);
+  });
+
+  const result = v.safeParse(UpdateSongSchema, body);
+  if (!result.success) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      result.issues.map((i) => i.message).join(", "),
+      400
+    );
+  }
+
+  const fields = result.output;
+
+  if (fields.is_public === undefined && fields.title === undefined) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "At least one field (is_public or title) must be provided",
+      400
+    );
+  }
+
+  const existing = await songQueries.findByIdAndUser(c.env.DB, id, userId);
+  if (!existing) {
+    throw new AppError("NOT_FOUND", "Song not found", 404);
+  }
+
+  await songQueries.update(c.env.DB, id, fields);
+
+  const updated = await songQueries.findByIdPublic(c.env.DB, id);
+  return c.json({ success: true, song: updated });
+});
+
+// ----------------------------------------------------------------------------
+// POST /:id/like  (protected)
+// ----------------------------------------------------------------------------
+songs.post("/:id/like", authGuard(), async (c) => {
+  const userId = c.get("userId");
+  const { id } = c.req.param();
+
+  const song = (await songQueries.findByIdPublic(c.env.DB, id)) as {
+    id: string;
+    user_id: string;
+    is_public: number | boolean;
+    like_count: number;
+  } | null;
+
+  if (!song) {
+    throw new AppError("NOT_FOUND", "Song not found", 404);
+  }
+
+  const isPublic = song.is_public === 1 || song.is_public === true;
+  if (!isPublic) {
+    throw new AppError("NOT_FOUND", "Song not found", 404);
+  }
+
+  if (song.user_id === userId) {
+    throw new AppError("FORBIDDEN", "Cannot like your own song", 403);
+  }
+
+  await likeQueries.like(c.env.DB, userId, song.id);
+
+  // Fetch updated like_count
+  const updated = (await songQueries.findByIdPublic(c.env.DB, id)) as {
+    like_count: number;
+  } | null;
+
+  return c.json({
+    success: true,
+    liked: true,
+    like_count: updated?.like_count ?? song.like_count + 1,
+  });
+});
+
+// ----------------------------------------------------------------------------
+// DELETE /:id/like  (protected)
+// ----------------------------------------------------------------------------
+songs.delete("/:id/like", authGuard(), async (c) => {
+  const userId = c.get("userId");
+  const { id } = c.req.param();
+
+  const deleteResult = await likeQueries.unlike(c.env.DB, userId, id);
+
+  if (deleteResult.meta.changes > 0) {
+    await likeQueries.decrementLikeCount(c.env.DB, id);
+  }
+
+  const updated = (await songQueries.findByIdPublic(c.env.DB, id)) as {
+    like_count: number;
+  } | null;
+
+  return c.json({
+    success: true,
+    liked: false,
+    like_count: updated?.like_count ?? 0,
+  });
+});
+
+// ----------------------------------------------------------------------------
+// DELETE /:id  (protected — owner only)
+// ----------------------------------------------------------------------------
+songs.delete("/:id", authGuard(), async (c) => {
   const userId = c.get("userId");
   const { id } = c.req.param();
 
@@ -228,11 +461,7 @@ songs.delete("/:id", async (c) => {
   }
 
   // Delete R2 objects by prefix for all three asset types
-  const prefixes = [
-    `audio/${id}/`,
-    `artwork/${id}/`,
-    `waveforms/${id}/`,
-  ];
+  const prefixes = [`audio/${id}/`, `artwork/${id}/`, `waveforms/${id}/`];
 
   await Promise.all(
     prefixes.map(async (prefix) => {
@@ -245,7 +474,6 @@ songs.delete("/:id", async (c) => {
     })
   );
 
-  // Delete D1 record
   await songQueries.delete(c.env.DB, id);
 
   return c.json({ success: true, message: "Song deleted" });
