@@ -10,28 +10,82 @@ interface UpdateProfileResponse {
 }
 
 const planLabels: Record<string, string> = {
-  free: "Free",
-  pro: "Pro",
+  free:       "Free",
+  creator:    "Creator",
+  pro:        "Pro",
   enterprise: "Enterprise",
 };
 
-const planColors: Record<string, { bg: string; text: string; border: string }> = {
+const planStyles: Record<string, React.CSSProperties> = {
   free: {
-    bg: "rgba(45, 45, 80, 0.5)",
-    text: "#9ca3af",
-    border: "var(--color-surface-3)",
+    backgroundColor: "rgba(255,255,255,0.05)",
+    color: "#9ca3af",
+    border: "1px solid rgba(255,255,255,0.08)",
+  },
+  creator: {
+    backgroundColor: "rgba(240,165,0,0.12)",
+    color: "var(--color-amber)",
+    border: "1px solid rgba(240,165,0,0.25)",
   },
   pro: {
-    bg: "rgba(240, 165, 0, 0.12)",
-    text: "var(--color-amber)",
-    border: "rgba(240, 165, 0, 0.3)",
+    backgroundColor: "rgba(0,210,255,0.1)",
+    color: "var(--color-teal)",
+    border: "1px solid rgba(0,210,255,0.25)",
   },
   enterprise: {
-    bg: "rgba(0, 210, 255, 0.1)",
-    text: "var(--color-teal)",
-    border: "rgba(0, 210, 255, 0.3)",
+    backgroundColor: "rgba(0,210,255,0.1)",
+    color: "var(--color-teal)",
+    border: "1px solid rgba(0,210,255,0.25)",
   },
 };
+
+// ─── Section Card wrapper ─────────────────────────────────────────────────────
+
+function SectionCard({
+  title,
+  children,
+  accent,
+}: {
+  title: string;
+  children: React.ReactNode;
+  accent?: boolean;
+}) {
+  return (
+    <div
+      className="rounded-2xl border overflow-hidden"
+      style={
+        accent
+          ? {
+              background: "linear-gradient(160deg, rgba(240,165,0,0.04) 0%, var(--color-surface-1) 100%)",
+              borderColor: "rgba(240,165,0,0.12)",
+            }
+          : {
+              backgroundColor: "var(--color-surface-1)",
+              borderColor: "rgba(255,255,255,0.06)",
+            }
+      }
+    >
+      {/* Section header */}
+      <div
+        className="px-6 py-4 border-b"
+        style={{
+          borderColor: accent ? "rgba(240,165,0,0.08)" : "rgba(255,255,255,0.05)",
+        }}
+      >
+        <h2
+          className="text-sm font-bold text-white tracking-tight"
+          style={{ fontFamily: "'Outfit', 'Sora', sans-serif" }}
+        >
+          {title}
+        </h2>
+      </div>
+
+      <div className="p-6">{children}</div>
+    </div>
+  );
+}
+
+// ─── Component ─────────────────────────────────────────────────────────────────
 
 export default function Settings() {
   const { user, login } = useAuth();
@@ -39,14 +93,13 @@ export default function Settings() {
   const [saved, setSaved] = useState(false);
 
   const [form, setForm] = useState({
-    username: user?.username ?? "",
+    username:     user?.username ?? "",
     display_name: user?.display_name ?? "",
   });
 
-  // Sync if user changes (e.g. refresh)
   useEffect(() => {
     setForm({
-      username: user?.username ?? "",
+      username:     user?.username ?? "",
       display_name: user?.display_name ?? "",
     });
   }, [user]);
@@ -69,81 +122,82 @@ export default function Settings() {
       api.put<UpdateProfileResponse>("/api/settings/profile", payload)
     );
     if (data) {
-      // Re-inject updated user with the same token (token doesn't change on profile update)
-      // We get back the updated user; keep existing token
       setSaved(true);
-      // Update context — we need to re-login with the refreshed user but same token
-      // The access token is still valid; just update the user object
-      // Since login() replaces the token, we read it from the api client's perspective.
-      // The cleanest approach is to call refresh() to get a fresh token+user.
-      // For now surface the saved state and let the next refresh pick it up.
     }
   }
 
-  const plan = user?.plan ?? "free";
-  const planStyle = planColors[plan] ?? planColors["free"];
+  const plan      = user?.plan ?? "free";
+  const planStyle = planStyles[plan] ?? planStyles["free"]!;
+  const isPaidPlan = plan !== "free";
 
-  const inputClass =
-    "w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-gray-500 outline-none transition-all";
-  const inputStyle = {
+  const inputBase: React.CSSProperties = {
     backgroundColor: "var(--color-surface-2)",
-    border: "1px solid var(--color-surface-3)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    transition: "border-color 0.2s ease, box-shadow 0.2s ease",
   };
+
   const focusHandlers = {
     onFocus: (e: React.FocusEvent<HTMLInputElement>) => {
       e.target.style.borderColor = "var(--color-amber)";
-      e.target.style.boxShadow = "0 0 0 2px rgba(240, 165, 0, 0.2)";
+      e.target.style.boxShadow = "0 0 0 3px rgba(240,165,0,0.12)";
     },
     onBlur: (e: React.FocusEvent<HTMLInputElement>) => {
-      e.target.style.borderColor = "var(--color-surface-3)";
+      e.target.style.borderColor = "rgba(255,255,255,0.08)";
       e.target.style.boxShadow = "none";
     },
   };
 
   return (
-    <div className="space-y-8 max-w-xl">
+    <div className="space-y-6 max-w-xl">
+      {/* Page header */}
       <div>
-        <h1 className="text-3xl font-bold text-white">Settings</h1>
-        <p className="mt-1 text-gray-400 text-sm">Manage your account and preferences.</p>
+        <h1
+          className="text-3xl font-bold text-white"
+          style={{ fontFamily: "'Outfit', 'Sora', sans-serif" }}
+        >
+          Settings
+        </h1>
+        <p className="mt-1 text-gray-500 text-sm">Manage your account and preferences.</p>
       </div>
 
-      {/* Profile card */}
-      <div
-        className="rounded-2xl p-6 border"
-        style={{
-          backgroundColor: "var(--color-surface-1)",
-          borderColor: "var(--color-surface-3)",
-        }}
-      >
-        <h2 className="text-base font-semibold text-white mb-4">Profile</h2>
-
-        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
+      {/* Profile section */}
+      <SectionCard title="Profile">
+        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-5">
+          {/* Error */}
           {saveApi.error && (
-            <p
-              className="text-sm px-3 py-2 rounded-lg"
+            <div
+              className="flex items-start gap-2 text-sm px-4 py-3 rounded-xl"
               style={{
                 color: "var(--color-coral)",
-                backgroundColor: "rgba(231, 76, 60, 0.1)",
+                backgroundColor: "rgba(231,76,60,0.08)",
+                border: "1px solid rgba(231,76,60,0.15)",
               }}
             >
-              {saveApi.error}
-            </p>
+              <span className="text-base leading-tight flex-shrink-0">✗</span>
+              <span>{saveApi.error}</span>
+            </div>
           )}
 
+          {/* Success */}
           {saved && (
-            <p
-              className="text-sm px-3 py-2 rounded-lg"
+            <div
+              className="flex items-center gap-2 text-sm px-4 py-3 rounded-xl"
               style={{
                 color: "var(--color-teal)",
-                backgroundColor: "rgba(0, 210, 255, 0.08)",
+                backgroundColor: "rgba(0,210,255,0.06)",
+                border: "1px solid rgba(0,210,255,0.15)",
               }}
             >
+              <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
               Profile saved successfully.
-            </p>
+            </div>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">
+          {/* Username */}
+          <div className="space-y-1.5">
+            <label className="block text-sm font-medium text-gray-300">
               Username
             </label>
             <input
@@ -154,15 +208,16 @@ export default function Settings() {
               minLength={3}
               maxLength={30}
               pattern="^[a-zA-Z0-9_]+$"
-              className={inputClass}
-              style={inputStyle}
+              className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-gray-600 outline-none"
+              style={inputBase}
               {...focusHandlers}
             />
-            <p className="mt-1 text-xs text-gray-500">Letters, numbers and underscores only</p>
+            <p className="text-xs text-gray-600">Letters, numbers and underscores only.</p>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">
+          {/* Display name */}
+          <div className="space-y-1.5">
+            <label className="block text-sm font-medium text-gray-300">
               Display name
             </label>
             <input
@@ -171,125 +226,157 @@ export default function Settings() {
               onChange={set("display_name")}
               placeholder="Your Name"
               maxLength={100}
-              className={inputClass}
-              style={inputStyle}
+              className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-gray-600 outline-none"
+              style={inputBase}
               {...focusHandlers}
             />
-            <p className="mt-1 text-xs text-gray-500">
-              Shown in the nav bar and on your profile
+            <p className="text-xs text-gray-600">
+              Shown in the nav bar and on your profile.
             </p>
           </div>
 
-          <div className="flex items-center justify-between pt-2">
+          {/* Submit */}
+          <div className="pt-1">
             <button
               type="submit"
               disabled={saveApi.loading}
-              className="px-6 py-2.5 rounded-xl text-sm font-semibold text-black transition-all hover:opacity-90 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              style={{ backgroundColor: "var(--color-amber)" }}
-            >
-              {saveApi.loading ? "Saving…" : "Save changes"}
-            </button>
-          </div>
-        </form>
-      </div>
-
-      {/* Subscription card */}
-      <div
-        className="rounded-2xl p-6 border"
-        style={{
-          backgroundColor: "var(--color-surface-1)",
-          borderColor: "var(--color-surface-3)",
-        }}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold text-white">Subscription</h2>
-          <Link
-            to="/billing"
-            className="text-sm font-medium transition-colors hover:opacity-80"
-            style={{ color: "var(--color-teal)" }}
-          >
-            Manage →
-          </Link>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-gray-400">Current plan</p>
-            <div className="flex items-center gap-2 mt-1.5">
-              <span
-                className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold"
-                style={{
-                  backgroundColor: planStyle.bg,
-                  color: planStyle.text,
-                  border: `1px solid ${planStyle.border}`,
-                }}
-              >
-                {planLabels[plan] ?? plan}
-              </span>
-            </div>
-          </div>
-          <div className="text-right">
-            <p className="text-sm text-gray-400">Credits remaining</p>
-            <p className="text-2xl font-bold mt-0.5" style={{ color: "var(--color-amber)" }}>
-              {user?.credits_remaining ?? 0}
-            </p>
-          </div>
-        </div>
-
-        {plan === "free" && (
-          <div className="mt-4 flex items-center justify-between gap-4">
-            <p
-              className="text-sm"
-              style={{ color: "#d1a44a" }}
-            >
-              Upgrade for more daily songs, WAV downloads, and commercial license.
-            </p>
-            <Link
-              to="/pricing"
-              className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold transition-all hover:opacity-90 active:scale-95"
+              className="px-6 py-2.5 rounded-full text-sm font-bold transition-all hover:opacity-90 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               style={{
                 backgroundColor: "var(--color-amber)",
                 color: "var(--color-charcoal)",
+                boxShadow: saveApi.loading ? "none" : "0 2px 14px rgba(240,165,0,0.3)",
               }}
             >
-              Upgrade
+              {saveApi.loading ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin inline-block" />
+                  Saving…
+                </span>
+              ) : (
+                "Save changes"
+              )}
+            </button>
+          </div>
+        </form>
+      </SectionCard>
+
+      {/* Subscription section */}
+      <SectionCard title="Subscription" accent>
+        <div className="space-y-4">
+          {/* Plan + credits row */}
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-1.5">
+              <p className="text-xs text-gray-500">Current plan</p>
+              <span
+                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-sm font-bold"
+                style={planStyle}
+              >
+                {isPaidPlan && <span className="text-base leading-none">⭐</span>}
+                {planLabels[plan] ?? plan}
+              </span>
+            </div>
+
+            <div className="text-right space-y-0.5">
+              <p className="text-xs text-gray-500">Credits remaining</p>
+              <p
+                className="text-3xl font-bold tabular-nums leading-tight"
+                style={{
+                  color: "var(--color-amber)",
+                  fontFamily: "'Outfit', 'Sora', sans-serif",
+                }}
+              >
+                {user?.credits_remaining ?? 0}
+              </p>
+            </div>
+          </div>
+
+          {/* Upgrade nudge for free plan */}
+          {!isPaidPlan && (
+            <div
+              className="rounded-xl p-4 flex items-center justify-between gap-4"
+              style={{
+                background: "rgba(240,165,0,0.05)",
+                border: "1px solid rgba(240,165,0,0.1)",
+              }}
+            >
+              <p className="text-sm text-gray-400 leading-snug">
+                Upgrade for more daily songs, WAV downloads, and commercial license.
+              </p>
+              <Link
+                to="/pricing"
+                className="flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold transition-all hover:opacity-90 active:scale-95"
+                style={{
+                  backgroundColor: "var(--color-amber)",
+                  color: "var(--color-charcoal)",
+                  boxShadow: "0 2px 10px rgba(240,165,0,0.3)",
+                }}
+              >
+                Upgrade
+              </Link>
+            </div>
+          )}
+
+          {/* Manage link */}
+          <div className="flex items-center justify-between pt-1">
+            <Link
+              to="/billing"
+              className="inline-flex items-center gap-1.5 text-sm font-medium transition-colors"
+              style={{ color: "var(--color-teal)" }}
+            >
+              Manage billing & payments
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+              </svg>
             </Link>
           </div>
-        )}
-      </div>
+        </div>
+      </SectionCard>
 
-      {/* Account info */}
-      <div
-        className="rounded-2xl p-6 border"
-        style={{
-          backgroundColor: "var(--color-surface-1)",
-          borderColor: "var(--color-surface-3)",
-        }}
-      >
-        <h2 className="text-base font-semibold text-white mb-4">Account</h2>
-        <dl className="space-y-3">
-          <div className="flex justify-between text-sm">
-            <dt className="text-gray-500">Email</dt>
-            <dd className="text-gray-300">{user?.email ?? "—"}</dd>
-          </div>
-          <div className="flex justify-between text-sm">
-            <dt className="text-gray-500">Auth method</dt>
-            <dd className="text-gray-300 capitalize">
-              {user?.primary_auth_method ?? "—"}
+      {/* Account info section */}
+      <SectionCard title="Account">
+        <dl className="space-y-4">
+          {[
+            { label: "Email",        value: user?.email ?? "—", mono: true },
+            { label: "Auth method",  value: user?.primary_auth_method ?? "—", capitalize: true },
+          ].map(({ label, value, mono, capitalize }) => (
+            <div key={label} className="flex items-center justify-between text-sm">
+              <dt className="text-gray-500">{label}</dt>
+              <dd
+                className={`text-gray-300 ${mono ? "font-mono text-xs" : ""} ${capitalize ? "capitalize" : ""}`}
+              >
+                {value}
+              </dd>
+            </div>
+          ))}
+
+          {/* Verified */}
+          <div className="flex items-center justify-between text-sm">
+            <dt className="text-gray-500">Email verified</dt>
+            <dd>
+              <span
+                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold"
+                style={
+                  user?.is_verified
+                    ? { backgroundColor: "rgba(0,210,255,0.1)", color: "var(--color-teal)", border: "1px solid rgba(0,210,255,0.18)" }
+                    : { backgroundColor: "rgba(231,76,60,0.1)", color: "var(--color-coral)", border: "1px solid rgba(231,76,60,0.18)" }
+                }
+              >
+                {user?.is_verified ? (
+                  <>
+                    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Verified
+                  </>
+                ) : (
+                  "Not verified"
+                )}
+              </span>
             </dd>
           </div>
-          <div className="flex justify-between text-sm">
-            <dt className="text-gray-500">Verified</dt>
-            <dd
-              className="text-sm font-medium"
-              style={{
-                color: user?.is_verified ? "var(--color-teal)" : "var(--color-coral)",
-              }}
-            >
-              {user?.is_verified ? "Yes" : "No"}
-            </dd>
-          </div>
-          <div className="flex justify-between text-sm">
+
+          {/* Member since */}
+          <div className="flex items-center justify-between text-sm">
             <dt className="text-gray-500">Member since</dt>
             <dd className="text-gray-300">
               {user?.created_at
@@ -302,7 +389,7 @@ export default function Settings() {
             </dd>
           </div>
         </dl>
-      </div>
+      </SectionCard>
     </div>
   );
 }

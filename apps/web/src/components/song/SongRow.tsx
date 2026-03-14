@@ -43,7 +43,7 @@ function isGenerating(status: Song["status"]): boolean {
 function getStatusLabel(status: Song["status"]): string {
   switch (status) {
     case "completed":
-      return "Completed";
+      return "Done";
     case "failed":
       return "Failed";
     default:
@@ -57,25 +57,33 @@ function StatusBadge({ status }: { status: Song["status"] }) {
   const label = getStatusLabel(status);
   const generating = isGenerating(status);
 
-  let colorClasses = "";
-  let dotColor = "";
+  let bgColor: string;
+  let textColor: string;
+  let borderColor: string;
 
   if (status === "completed") {
-    colorClasses = "bg-teal/20 text-teal";
-    dotColor = "bg-teal";
+    bgColor = "rgba(0,210,255,0.12)";
+    textColor = "var(--color-teal)";
+    borderColor = "rgba(0,210,255,0.18)";
   } else if (status === "failed") {
-    colorClasses = "bg-coral/20 text-coral";
-    dotColor = "bg-coral";
+    bgColor = "rgba(231,76,60,0.12)";
+    textColor = "var(--color-coral)";
+    borderColor = "rgba(231,76,60,0.18)";
   } else {
-    colorClasses = "bg-amber/20 text-amber";
-    dotColor = "bg-amber";
+    bgColor = "rgba(240,165,0,0.12)";
+    textColor = "var(--color-amber)";
+    borderColor = "rgba(240,165,0,0.18)";
   }
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${colorClasses} shrink-0`}
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold shrink-0"
+      style={{ backgroundColor: bgColor, color: textColor, border: `1px solid ${borderColor}` }}
     >
-      <span className={`w-1.5 h-1.5 rounded-full ${dotColor} ${generating ? "animate-pulse" : ""}`} />
+      <span
+        className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${generating ? "animate-pulse" : ""}`}
+        style={{ backgroundColor: textColor }}
+      />
       {label}
     </span>
   );
@@ -87,10 +95,27 @@ export function SongRow({ song }: SongRowProps) {
   return (
     <Link
       to={`/studio/song/${song.id}`}
-      className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-surface-2 transition-colors group"
+      className="flex items-center gap-3 px-4 py-3 transition-all group relative"
+      style={{
+        borderLeft: "2px solid transparent",
+        transition: "background-color 0.2s ease, border-color 0.2s ease",
+      }}
+      onMouseEnter={(e) => {
+        const el = e.currentTarget as HTMLAnchorElement;
+        el.style.backgroundColor = "rgba(240,165,0,0.04)";
+        el.style.borderLeftColor = "var(--color-amber)";
+      }}
+      onMouseLeave={(e) => {
+        const el = e.currentTarget as HTMLAnchorElement;
+        el.style.backgroundColor = "transparent";
+        el.style.borderLeftColor = "transparent";
+      }}
     >
-      {/* 40×40 thumbnail */}
-      <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-surface-3">
+      {/* 44×44 thumbnail */}
+      <div
+        className="w-11 h-11 rounded-lg overflow-hidden shrink-0"
+        style={{ backgroundColor: "var(--color-surface-3)" }}
+      >
         {song.artwork_url ? (
           <img
             src={song.artwork_url}
@@ -112,14 +137,29 @@ export function SongRow({ song }: SongRowProps) {
         )}
       </div>
 
-      {/* Title */}
-      <p className="flex-1 min-w-0 text-white text-sm font-medium truncate group-hover:text-amber/90 transition-colors">
-        {song.title}
-      </p>
+      {/* Title + genre */}
+      <div className="flex-1 min-w-0">
+        <p
+          className="text-white text-sm font-semibold truncate transition-colors"
+          style={{ fontFamily: "'Outfit', 'Sora', sans-serif" }}
+        >
+          {song.title}
+        </p>
+        {song.genre && (
+          <p className="text-xs text-gray-600 capitalize truncate">{song.genre}</p>
+        )}
+      </div>
 
-      {/* Genre badge */}
+      {/* Genre badge — wider screens */}
       {song.genre && (
-        <span className="shrink-0 px-2 py-0.5 rounded-full bg-surface-3 text-gray-400 text-xs capitalize hidden sm:inline-flex">
+        <span
+          className="shrink-0 px-2 py-0.5 rounded-full text-xs capitalize hidden lg:inline-flex"
+          style={{
+            backgroundColor: "rgba(255,255,255,0.05)",
+            color: "#6b7280",
+            border: "1px solid rgba(255,255,255,0.07)",
+          }}
+        >
           {song.genre}
         </span>
       )}
@@ -128,12 +168,18 @@ export function SongRow({ song }: SongRowProps) {
       <StatusBadge status={song.status} />
 
       {/* Duration */}
-      <span className="shrink-0 text-gray-400 text-xs tabular-nums w-12 text-right hidden sm:block">
+      <span
+        className="shrink-0 text-xs tabular-nums font-mono w-10 text-right hidden sm:block"
+        style={{ color: "#4b5563" }}
+      >
         {formatDuration(song.duration_seconds)}
       </span>
 
       {/* Relative date */}
-      <span className="shrink-0 text-gray-500 text-xs w-20 text-right hidden md:block">
+      <span
+        className="shrink-0 text-xs w-20 text-right hidden md:block"
+        style={{ color: "#4b5563" }}
+      >
         {getRelativeDate(song.created_at)}
       </span>
     </Link>

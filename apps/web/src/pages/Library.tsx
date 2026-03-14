@@ -12,6 +12,13 @@ type StatusFilter = "all" | "completed" | "failed" | "liked";
 
 const LS_VIEW_KEY = "melodia-library-view";
 
+const STATUS_FILTERS: { id: StatusFilter; label: string; emoji: string }[] = [
+  { id: "all",       label: "All",        emoji: "✦" },
+  { id: "completed", label: "Completed",  emoji: "✓" },
+  { id: "failed",    label: "Failed",     emoji: "✗" },
+  { id: "liked",     label: "Liked",      emoji: "♥" },
+];
+
 // ─── Icons ─────────────────────────────────────────────────────────────────────
 
 function GridIcon({ active }: { active: boolean }) {
@@ -53,14 +60,28 @@ function ListIcon({ active }: { active: boolean }) {
 function EmptyState({ filter }: { filter: StatusFilter }) {
   if (filter === "liked") {
     return (
-      <div className="text-center py-16 space-y-3">
-        <p className="text-gray-400 text-sm">No liked songs yet.</p>
+      <div className="flex flex-col items-center justify-center py-20 gap-4">
+        <div
+          className="w-20 h-20 rounded-3xl flex items-center justify-center text-4xl"
+          style={{ backgroundColor: "rgba(255,107,107,0.08)", border: "1px solid rgba(255,107,107,0.12)" }}
+        >
+          🤍
+        </div>
+        <div className="text-center">
+          <p className="text-white font-semibold mb-1" style={{ fontFamily: "'Outfit', 'Sora', sans-serif" }}>
+            No liked songs yet
+          </p>
+          <p className="text-gray-500 text-sm">Explore the community and like songs you love.</p>
+        </div>
         <Link
           to="/explore"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors"
-          style={{ backgroundColor: "var(--color-surface-2)", color: "var(--color-amber)" }}
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-all hover:opacity-90"
+          style={{ backgroundColor: "var(--color-amber)", color: "var(--color-charcoal)" }}
         >
           Explore Music
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+          </svg>
         </Link>
       </div>
     );
@@ -68,42 +89,69 @@ function EmptyState({ filter }: { filter: StatusFilter }) {
 
   if (filter !== "all") {
     return (
-      <div className="text-center py-16">
-        <p className="text-gray-400 text-sm">
-          No {filter} songs yet.
-        </p>
+      <div className="flex flex-col items-center justify-center py-16 gap-3">
+        <span className="text-3xl">🎵</span>
+        <p className="text-gray-500 text-sm">No {filter} songs yet.</p>
       </div>
     );
   }
 
   return (
-    <div className="text-center py-20 space-y-4">
-      {/* Music note icon */}
-      <div
-        className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-2"
-        style={{ backgroundColor: "rgba(240,165,0,0.1)" }}
-      >
-        <svg
-          className="w-8 h-8"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="var(--color-amber)"
-          strokeWidth={1.5}
-          strokeLinecap="round"
-          strokeLinejoin="round"
+    <div className="flex flex-col items-center justify-center py-24 gap-5">
+      {/* Decorative music art */}
+      <div className="relative">
+        <div
+          className="w-24 h-24 rounded-3xl flex items-center justify-center"
+          style={{
+            background: "radial-gradient(circle at 40% 40%, rgba(240,165,0,0.15), rgba(240,165,0,0.03))",
+            border: "1px solid rgba(240,165,0,0.12)",
+            boxShadow: "0 0 40px rgba(240,165,0,0.08)",
+          }}
         >
-          <path d="M9 18V5l12-2v13" />
-          <circle cx="6" cy="18" r="3" />
-          <circle cx="18" cy="16" r="3" />
-        </svg>
+          <svg
+            className="w-12 h-12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="var(--color-amber)"
+            strokeWidth={1.2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M9 18V5l12-2v13" />
+            <circle cx="6" cy="18" r="3" />
+            <circle cx="18" cy="16" r="3" />
+          </svg>
+        </div>
+        {/* Floating notes */}
+        <span className="absolute -top-2 -right-2 text-lg opacity-50">♪</span>
+        <span className="absolute -bottom-1 -left-3 text-sm opacity-30">♫</span>
       </div>
-      <h3 className="text-lg font-semibold text-white">No songs yet</h3>
-      <p className="text-gray-400 text-sm">Create your first AI-generated song.</p>
+
+      <div className="text-center space-y-1.5">
+        <h3
+          className="text-xl font-bold text-white"
+          style={{ fontFamily: "'Outfit', 'Sora', sans-serif" }}
+        >
+          No songs yet
+        </h3>
+        <p className="text-gray-500 text-sm max-w-xs">
+          Your AI-generated songs will appear here. Create your first track now.
+        </p>
+      </div>
+
       <Link
         to="/studio"
-        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors"
-        style={{ backgroundColor: "var(--color-amber)", color: "var(--color-charcoal)" }}
+        className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm font-bold transition-all hover:opacity-90 active:scale-95"
+        style={{
+          backgroundColor: "var(--color-amber)",
+          color: "var(--color-charcoal)",
+          boxShadow: "0 4px 20px rgba(240,165,0,0.35)",
+        }}
       >
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+        </svg>
         Create your first song
       </Link>
     </div>
@@ -132,13 +180,11 @@ export default function Library() {
   const sentinelRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
-  // Persist view mode
   const setView = useCallback((v: ViewMode) => {
     setViewMode(v);
     localStorage.setItem(LS_VIEW_KEY, v);
   }, []);
 
-  // Load first page whenever filter changes
   const loadFirst = useCallback(async () => {
     setLoadingFirst(true);
     setItems([]);
@@ -151,7 +197,6 @@ export default function Library() {
       if (filter === "liked") {
         const res = await songs.likedSongs({ page: 0 });
         setItems(res.songs);
-        // likedSongs uses offset, simulate cursor via next_cursor
         setLikedHasMore(res.next_cursor !== null);
         setTotalFetched(res.songs.length);
       } else {
@@ -173,10 +218,8 @@ export default function Library() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter]);
 
-  // Load next page
   const loadMore = useCallback(async () => {
     if (loadingMore || loadingFirst) return;
-
     setLoadingMore(true);
     try {
       if (filter === "liked") {
@@ -196,13 +239,12 @@ export default function Library() {
         setTotalFetched((n) => n + res.songs.length);
       }
     } catch {
-      // Ignore — user can scroll again
+      // Ignore
     } finally {
       setLoadingMore(false);
     }
   }, [nextCursor, likedPage, loadingMore, loadingFirst, filter, songs]);
 
-  // IntersectionObserver for infinite scroll
   useEffect(() => {
     if (observerRef.current) {
       observerRef.current.disconnect();
@@ -233,87 +275,109 @@ export default function Library() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-baseline gap-2">
-          <h1 className="text-2xl font-bold text-white">Your Songs</h1>
-          {!loadingFirst && (
-            <span className="text-gray-500 text-sm">
-              ({totalFetched}{hasMore ? "+" : ""})
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        {/* Title + count badge */}
+        <div className="flex items-center gap-3">
+          <h1
+            className="text-3xl font-bold text-white leading-tight"
+            style={{ fontFamily: "'Outfit', 'Sora', sans-serif" }}
+          >
+            Your Songs
+          </h1>
+          {!loadingFirst && totalFetched > 0 && (
+            <span
+              className="px-3 py-1 rounded-full text-sm font-bold"
+              style={{
+                backgroundColor: "rgba(240,165,0,0.1)",
+                color: "var(--color-amber)",
+                border: "1px solid rgba(240,165,0,0.2)",
+              }}
+            >
+              {totalFetched}{hasMore ? "+" : ""}
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* Status filter */}
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value as StatusFilter)}
-            className="rounded-xl px-3 py-2 text-sm text-white border appearance-none cursor-pointer focus:outline-none focus:ring-2"
-            style={{
-              backgroundColor: "var(--color-surface-2)",
-              borderColor: "var(--color-surface-3)",
-              // @ts-expect-error CSS custom prop
-              "--tw-ring-color": "var(--color-amber)",
-            }}
-          >
-            <option value="all">All</option>
-            <option value="completed">Completed</option>
-            <option value="failed">Failed</option>
-            <option value="liked">Liked</option>
-          </select>
-
+        {/* Controls */}
+        <div className="flex items-center gap-2 flex-wrap">
           {/* View toggle */}
           <div
-            className="flex items-center rounded-xl overflow-hidden border"
-            style={{ borderColor: "var(--color-surface-3)" }}
+            className="flex items-center rounded-xl overflow-hidden border p-0.5 gap-0.5"
+            style={{
+              backgroundColor: "var(--color-surface-2)",
+              borderColor: "rgba(255,255,255,0.06)",
+            }}
           >
-            <button
-              onClick={() => setView("grid")}
-              className={`p-2 transition-colors ${viewMode === "grid" ? "text-amber" : "text-gray-500 hover:text-gray-300"}`}
-              style={{
-                backgroundColor:
-                  viewMode === "grid"
-                    ? "var(--color-surface-3)"
-                    : "var(--color-surface-2)",
-              }}
-              aria-label="Grid view"
-              aria-pressed={viewMode === "grid"}
-            >
-              <GridIcon active={viewMode === "grid"} />
-            </button>
-            <button
-              onClick={() => setView("list")}
-              className={`p-2 transition-colors ${viewMode === "list" ? "text-amber" : "text-gray-500 hover:text-gray-300"}`}
-              style={{
-                backgroundColor:
-                  viewMode === "list"
-                    ? "var(--color-surface-3)"
-                    : "var(--color-surface-2)",
-              }}
-              aria-label="List view"
-              aria-pressed={viewMode === "list"}
-            >
-              <ListIcon active={viewMode === "list"} />
-            </button>
+            {(["grid", "list"] as ViewMode[]).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className="p-2 rounded-lg transition-all cursor-pointer"
+                style={
+                  viewMode === v
+                    ? {
+                        backgroundColor: "var(--color-amber)",
+                        color: "var(--color-charcoal)",
+                        boxShadow: "0 2px 8px rgba(240,165,0,0.3)",
+                      }
+                    : { color: "#6b7280" }
+                }
+                aria-label={`${v === "grid" ? "Grid" : "List"} view`}
+                aria-pressed={viewMode === v}
+              >
+                {v === "grid" ? (
+                  <GridIcon active={viewMode === "grid"} />
+                ) : (
+                  <ListIcon active={viewMode === "list"} />
+                )}
+              </button>
+            ))}
           </div>
         </div>
       </div>
 
+      {/* Filter pills */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {STATUS_FILTERS.map(({ id, label, emoji }) => {
+          const active = filter === id;
+          return (
+            <button
+              key={id}
+              onClick={() => setFilter(id)}
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer"
+              style={
+                active
+                  ? {
+                      backgroundColor: "var(--color-amber)",
+                      color: "var(--color-charcoal)",
+                      boxShadow: "0 2px 12px rgba(240,165,0,0.35)",
+                    }
+                  : {
+                      backgroundColor: "var(--color-surface-2)",
+                      color: "#6b7280",
+                      border: "1px solid rgba(255,255,255,0.06)",
+                    }
+              }
+            >
+              <span aria-hidden="true">{emoji}</span>
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
       {/* Body */}
       {loadingFirst ? (
-        <div className="flex items-center justify-center py-20">
+        <div className="flex items-center justify-center py-24">
           <div
             className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
-            style={{
-              borderColor: "var(--color-amber)",
-              borderTopColor: "transparent",
-            }}
+            style={{ borderColor: "var(--color-amber)", borderTopColor: "transparent" }}
           />
         </div>
       ) : items.length === 0 ? (
         <EmptyState filter={filter} />
       ) : viewMode === "grid" ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {items.map((song) => (
             <SongCard key={song.id} song={song} />
           ))}
@@ -323,14 +387,14 @@ export default function Library() {
           className="rounded-2xl border overflow-hidden"
           style={{
             backgroundColor: "var(--color-surface-1)",
-            borderColor: "var(--color-surface-3)",
+            borderColor: "rgba(255,255,255,0.06)",
           }}
         >
           {items.map((song, idx) => (
             <div
               key={song.id}
               className={idx < items.length - 1 ? "border-b" : ""}
-              style={{ borderColor: "var(--color-surface-3)" }}
+              style={{ borderColor: "rgba(255,255,255,0.04)" }}
             >
               <SongRow song={song} />
             </div>
@@ -344,10 +408,7 @@ export default function Library() {
           {loadingMore && (
             <div
               className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin"
-              style={{
-                borderColor: "var(--color-amber)",
-                borderTopColor: "transparent",
-              }}
+              style={{ borderColor: "var(--color-amber)", borderTopColor: "transparent" }}
             />
           )}
         </div>

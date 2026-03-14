@@ -8,12 +8,19 @@ import type { SongWithCreator } from "@melodia/shared";
 
 type Tab = "new" | "popular" | "genre";
 
+const TABS: { id: Tab; label: string; icon: string }[] = [
+  { id: "new",     label: "New",     icon: "✦" },
+  { id: "popular", label: "Popular", icon: "🔥" },
+  { id: "genre",   label: "Genre",   icon: "🎵" },
+];
+
 // ─── Spinner ───────────────────────────────────────────────────────────────────
 
 function Spinner({ size = "lg" }: { size?: "sm" | "lg" }) {
   const cls = size === "sm" ? "w-5 h-5" : "w-8 h-8";
   return (
-    <div className={`${cls} rounded-full border-2 border-t-transparent animate-spin`}
+    <div
+      className={`${cls} rounded-full border-2 border-t-transparent animate-spin`}
       style={{ borderColor: "var(--color-amber)", borderTopColor: "transparent" }}
     />
   );
@@ -23,41 +30,71 @@ function Spinner({ size = "lg" }: { size?: "sm" | "lg" }) {
 
 function EmptyState({ genre }: { genre?: string }) {
   return (
-    <div className="text-center py-16">
-      <p className="text-gray-400 text-sm">
+    <div className="flex flex-col items-center justify-center py-20 gap-4">
+      <div
+        className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl"
+        style={{ backgroundColor: "rgba(240,165,0,0.08)", border: "1px solid rgba(240,165,0,0.15)" }}
+      >
+        🎵
+      </div>
+      <p className="text-gray-400 text-sm text-center max-w-xs">
         {genre
-          ? `No public ${genre} songs yet. Be the first!`
+          ? `No public ${genre} songs yet. Be the first to create one!`
           : "No public songs yet. Generate and publish one!"}
       </p>
     </div>
   );
 }
 
-// ─── Tab button ────────────────────────────────────────────────────────────────
+// ─── Pill Tab Bar ──────────────────────────────────────────────────────────────
 
-function TabButton({
-  label,
-  active,
-  onClick,
+function TabBar({
+  activeTab,
+  onChange,
 }: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
+  activeTab: Tab;
+  onChange: (t: Tab) => void;
 }) {
   return (
-    <button
-      onClick={onClick}
-      className="relative px-5 py-2.5 text-sm font-medium transition-colors cursor-pointer"
-      style={{ color: active ? "var(--color-amber)" : "#9ca3af" }}
+    <div
+      className="flex items-center gap-1 p-1 rounded-full w-fit"
+      style={{
+        backgroundColor: "var(--color-surface-2)",
+        border: "1px solid rgba(255,255,255,0.06)",
+      }}
+      role="tablist"
+      aria-label="Explore tabs"
     >
-      {label}
-      {active && (
-        <span
-          className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full"
-          style={{ backgroundColor: "var(--color-amber)" }}
-        />
-      )}
-    </button>
+      {TABS.map(({ id, label, icon }) => {
+        const active = activeTab === id;
+        return (
+          <button
+            key={id}
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(id)}
+            className="relative flex items-center gap-1.5 px-5 py-2 rounded-full text-sm font-semibold transition-all duration-200 cursor-pointer select-none"
+            style={
+              active
+                ? {
+                    backgroundColor: "var(--color-amber)",
+                    color: "var(--color-charcoal)",
+                    boxShadow: "0 2px 12px rgba(240,165,0,0.4)",
+                    fontFamily: "'Outfit', 'Sora', sans-serif",
+                  }
+                : {
+                    backgroundColor: "transparent",
+                    color: "#6b7280",
+                    fontFamily: "'Outfit', 'Sora', sans-serif",
+                  }
+            }
+          >
+            <span className="text-base leading-none" aria-hidden="true">{icon}</span>
+            {label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -66,7 +103,7 @@ function TabButton({
 function SongFeed({ songs }: { songs: SongWithCreator[] }) {
   if (songs.length === 0) return null;
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
       {songs.map((song) => (
         <SongCard
           key={song.id}
@@ -79,6 +116,57 @@ function SongFeed({ songs }: { songs: SongWithCreator[] }) {
           showSocialStats={true}
         />
       ))}
+    </div>
+  );
+}
+
+// ─── Load More Button ──────────────────────────────────────────────────────────
+
+function LoadMoreButton({
+  onClick,
+  loading,
+}: {
+  onClick: () => void;
+  loading: boolean;
+}) {
+  return (
+    <div className="flex justify-center pt-2">
+      <button
+        onClick={onClick}
+        disabled={loading}
+        className="inline-flex items-center gap-2 px-7 py-2.5 rounded-full text-sm font-semibold transition-all disabled:opacity-50 cursor-pointer"
+        style={{
+          backgroundColor: "var(--color-surface-2)",
+          color: "var(--color-amber)",
+          border: "1px solid rgba(240,165,0,0.2)",
+          transition: "background-color 0.2s, box-shadow 0.2s",
+        }}
+        onMouseEnter={(e) => {
+          (e.currentTarget as HTMLButtonElement).style.backgroundColor =
+            "rgba(240,165,0,0.08)";
+          (e.currentTarget as HTMLButtonElement).style.boxShadow =
+            "0 0 20px rgba(240,165,0,0.15)";
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLButtonElement).style.backgroundColor =
+            "var(--color-surface-2)";
+          (e.currentTarget as HTMLButtonElement).style.boxShadow = "none";
+        }}
+      >
+        {loading ? (
+          <>
+            <Spinner size="sm" />
+            Loading…
+          </>
+        ) : (
+          <>
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+            Load More
+          </>
+        )}
+      </button>
     </div>
   );
 }
@@ -114,7 +202,7 @@ export default function Explore() {
   const sentinelGenreRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
-  // ── New tab: load first page ──────────────────────────────────────────────
+  // ── New tab ──────────────────────────────────────────────────────────────
 
   const loadNewFirst = useCallback(async () => {
     setNewLoading(true);
@@ -145,7 +233,7 @@ export default function Explore() {
     }
   }, [newCursor, newLoadingMore, newLoading, songs]);
 
-  // ── Popular tab: load first page ─────────────────────────────────────────
+  // ── Popular tab ──────────────────────────────────────────────────────────
 
   const loadPopularFirst = useCallback(async () => {
     setPopularLoading(true);
@@ -179,7 +267,7 @@ export default function Explore() {
     }
   }, [popularLoadingMore, popularHasMore, popularPage, songs]);
 
-  // ── Genre tab: load songs for selected genre ──────────────────────────────
+  // ── Genre tab ────────────────────────────────────────────────────────────
 
   const loadGenreFirst = useCallback(async (genre: string) => {
     setGenreLoading(true);
@@ -200,7 +288,11 @@ export default function Explore() {
     if (!selectedGenre || !genreCursor || genreLoadingMore || genreLoading) return;
     setGenreLoadingMore(true);
     try {
-      const res = await songs.exploreSongs({ tab: "genre", genre: selectedGenre, cursor: genreCursor });
+      const res = await songs.exploreSongs({
+        tab: "genre",
+        genre: selectedGenre,
+        cursor: genreCursor,
+      });
       setGenreSongs((prev) => [...prev, ...res.songs]);
       setGenreCursor(res.next_cursor);
     } catch {
@@ -224,10 +316,13 @@ export default function Explore() {
     }
   }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSelectGenre = useCallback((genre: string) => {
-    setSelectedGenre(genre);
-    void loadGenreFirst(genre);
-  }, [loadGenreFirst]);
+  const handleSelectGenre = useCallback(
+    (genre: string) => {
+      setSelectedGenre(genre);
+      void loadGenreFirst(genre);
+    },
+    [loadGenreFirst]
+  );
 
   const handleBackToGenres = useCallback(() => {
     setSelectedGenre(null);
@@ -235,7 +330,7 @@ export default function Explore() {
     setGenreCursor(null);
   }, []);
 
-  // ── IntersectionObserver for infinite scroll (New + Genre) ───────────────
+  // ── IntersectionObserver ──────────────────────────────────────────────────
 
   useEffect(() => {
     observerRef.current?.disconnect();
@@ -245,7 +340,12 @@ export default function Explore() {
         if (!entries[0]?.isIntersecting) return;
         if (activeTab === "new" && newCursor && !newLoadingMore) {
           void loadNewMore();
-        } else if (activeTab === "genre" && genreCursor && !genreLoadingMore && selectedGenre) {
+        } else if (
+          activeTab === "genre" &&
+          genreCursor &&
+          !genreLoadingMore &&
+          selectedGenre
+        ) {
           void loadGenreMore();
         }
       },
@@ -275,28 +375,32 @@ export default function Explore() {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-white">Explore</h1>
-        <p className="text-gray-400 text-sm mt-1">Discover music from the Melodia community</p>
-      </div>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1
+            className="text-3xl font-bold text-white leading-tight"
+            style={{ fontFamily: "'Outfit', 'Sora', sans-serif" }}
+          >
+            Explore
+          </h1>
+          <p className="text-gray-500 text-sm mt-1">
+            Discover music from the Melodia community
+          </p>
+        </div>
 
-      {/* Tab bar */}
-      <div
-        className="flex items-center border-b"
-        style={{ borderColor: "var(--color-surface-3)" }}
-      >
-        <TabButton label="New" active={activeTab === "new"} onClick={() => setActiveTab("new")} />
-        <TabButton label="Popular" active={activeTab === "popular"} onClick={() => setActiveTab("popular")} />
-        <TabButton label="Genre" active={activeTab === "genre"} onClick={() => setActiveTab("genre")} />
+        {/* Tab bar — pill style */}
+        <TabBar activeTab={activeTab} onChange={setActiveTab} />
       </div>
 
       {/* ── New Tab ── */}
       {activeTab === "new" && (
-        <div className="space-y-4">
+        <div className="space-y-5">
           {newLoading ? (
-            <div className="flex justify-center py-16"><Spinner /></div>
+            <div className="flex justify-center py-20">
+              <Spinner />
+            </div>
           ) : newSongs.length === 0 ? (
             <EmptyState />
           ) : (
@@ -316,27 +420,19 @@ export default function Explore() {
       {activeTab === "popular" && (
         <div className="space-y-6">
           {popularLoading ? (
-            <div className="flex justify-center py-16"><Spinner /></div>
+            <div className="flex justify-center py-20">
+              <Spinner />
+            </div>
           ) : popularSongs.length === 0 ? (
             <EmptyState />
           ) : (
             <>
               <SongFeed songs={popularSongs} />
               {popularHasMore && (
-                <div className="flex justify-center">
-                  <button
-                    onClick={() => void loadPopularMore()}
-                    disabled={popularLoadingMore}
-                    className="px-6 py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer"
-                    style={{
-                      backgroundColor: "var(--color-surface-2)",
-                      color: "var(--color-amber)",
-                      borderColor: "var(--color-surface-3)",
-                    }}
-                  >
-                    {popularLoadingMore ? "Loading…" : "Load More"}
-                  </button>
-                </div>
+                <LoadMoreButton
+                  onClick={() => void loadPopularMore()}
+                  loading={popularLoadingMore}
+                />
               )}
             </>
           )}
@@ -345,32 +441,57 @@ export default function Explore() {
 
       {/* ── Genre Tab ── */}
       {activeTab === "genre" && (
-        <div className="space-y-4">
+        <div className="space-y-5">
           {!selectedGenre ? (
             <GenreGrid onSelectGenre={handleSelectGenre} />
           ) : (
             <>
               {/* Back + genre heading */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 <button
                   onClick={handleBackToGenres}
-                  className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-white transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1.5 text-sm font-medium transition-all cursor-pointer rounded-full px-3 py-1.5"
+                  style={{
+                    color: "#6b7280",
+                    backgroundColor: "var(--color-surface-2)",
+                    border: "1px solid rgba(255,255,255,0.06)",
+                  }}
+                  onMouseEnter={(e) =>
+                    ((e.currentTarget as HTMLButtonElement).style.color = "white")
+                  }
+                  onMouseLeave={(e) =>
+                    ((e.currentTarget as HTMLButtonElement).style.color = "#6b7280")
+                  }
                 >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <svg
+                    className="w-3.5 h-3.5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
                     <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
-                  Back to Genres
+                  All Genres
                 </button>
+
                 <span
-                  className="px-3 py-1 rounded-full text-sm font-medium capitalize"
-                  style={{ backgroundColor: "var(--color-surface-2)", color: "var(--color-amber)" }}
+                  className="px-4 py-1.5 rounded-full text-sm font-bold capitalize"
+                  style={{
+                    backgroundColor: "rgba(240,165,0,0.12)",
+                    color: "var(--color-amber)",
+                    border: "1px solid rgba(240,165,0,0.25)",
+                    fontFamily: "'Outfit', 'Sora', sans-serif",
+                  }}
                 >
                   {selectedGenre}
                 </span>
               </div>
 
               {genreLoading ? (
-                <div className="flex justify-center py-16"><Spinner /></div>
+                <div className="flex justify-center py-20">
+                  <Spinner />
+                </div>
               ) : genreSongs.length === 0 ? (
                 <EmptyState genre={selectedGenre} />
               ) : (
