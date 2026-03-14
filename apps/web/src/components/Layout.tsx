@@ -30,6 +30,40 @@ export default function Layout() {
             {/* Nav links */}
             <div className="flex items-center gap-1">
               <NavLink
+                to="/studio"
+                className={({ isActive }) =>
+                  `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    isActive
+                      ? "text-white"
+                      : "text-gray-400 hover:text-white"
+                  }`
+                }
+                style={({ isActive }) =>
+                  isActive
+                    ? { backgroundColor: "var(--color-surface-3)" }
+                    : undefined
+                }
+              >
+                Studio
+              </NavLink>
+              <NavLink
+                to="/library"
+                className={({ isActive }) =>
+                  `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    isActive
+                      ? "text-white"
+                      : "text-gray-400 hover:text-white"
+                  }`
+                }
+                style={({ isActive }) =>
+                  isActive
+                    ? { backgroundColor: "var(--color-surface-3)" }
+                    : undefined
+                }
+              >
+                Library
+              </NavLink>
+              <NavLink
                 to="/dashboard"
                 className={({ isActive }) =>
                   `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${

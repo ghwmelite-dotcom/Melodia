@@ -16,6 +16,9 @@ const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 // Protected pages — code-split
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Settings = lazy(() => import("./pages/Settings"));
+const Studio = lazy(() => import("./pages/Studio"));
+const SongView = lazy(() => import("./pages/SongView"));
+const Library = lazy(() => import("./pages/Library"));
 
 function PageSpinner() {
   return (
@@ -40,6 +43,9 @@ export default function App() {
         {/* Protected routes */}
         <Route element={<AuthGuard />}>
           <Route element={<Layout />}>
+            <Route path="/studio" element={<Studio />} />
+            <Route path="/studio/song/:id" element={<SongView />} />
+            <Route path="/library" element={<Library />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
