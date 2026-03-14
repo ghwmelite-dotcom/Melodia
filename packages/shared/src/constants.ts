@@ -21,6 +21,7 @@ export type AuthMethod = (typeof AUTH_METHODS)[number];
 // Credit reasons
 export const CREDIT_REASONS = [
   "song_generation",
+  "generation_refund",
   "daily_reset",
   "purchase",
   "referral",
@@ -88,3 +89,24 @@ export const ERROR_CODES = [
   "NOT_IMPLEMENTED",
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
+
+// ACE-Step model types
+export const ACE_STEP_MODELS = ["turbo", "sft", "base"] as const;
+export type AceStepModel = (typeof ACE_STEP_MODELS)[number];
+
+// Stage timeouts (milliseconds)
+export const STAGE_TIMEOUTS = {
+  BLUEPRINT: 30_000,
+  LYRICS: 30_000,
+  REFINEMENT: 30_000,
+  MUSIC: 120_000,
+  ARTWORK: 60_000,
+  POST_PROCESSING: 30_000,
+} as const;
+
+// Workers AI model identifiers
+export const AI_MODELS = {
+  LYRICS_PRIMARY: "@cf/meta/llama-4-scout-17b-16e-instruct",
+  LYRICS_FALLBACK: "@cf/qwen/qwen3-30b-a3b-fp8",
+  ARTWORK: "@cf/black-forest-labs/flux-2-dev",
+} as const;
