@@ -36,32 +36,26 @@ songs.post("/generate", async (c) => {
   const songId = ulid();
   const txId = ulid();
 
-  // Atomic credit deduction: UPDATE users + INSERT credit_transaction
-  const [deductResult] = await c.env.DB.batch([
-    c.env.DB.prepare(
-      "UPDATE users SET credits_remaining = credits_remaining - 1, updated_at = datetime('now') WHERE id = ? AND credits_remaining > 0"
-    ).bind(userId),
-    c.env.DB.prepare(
-      "INSERT INTO credit_transactions (id, user_id, amount, reason, song_id) VALUES (?, ?, -1, 'song_generation', ?)"
-    ).bind(txId, userId, songId),
-  ]);
+  // Atomic credit deduction — deduct first, then create song + credit transaction together.
+  // The credit_transaction has a FK to songs(id), so the song must exist first.
+  const deductResult = await c.env.DB.prepare(
+    "UPDATE users SET credits_remaining = credits_remaining - 1, updated_at = datetime('now') WHERE id = ? AND credits_remaining > 0"
+  ).bind(userId).run();
 
-  // If no row was updated, the user has insufficient credits
   if (deductResult.meta.changes === 0) {
     throw new AppError("FORBIDDEN", "Insufficient credits", 403);
   }
 
-  // Create song record
-  await songQueries.create(c.env.DB, {
-    id: songId,
-    user_id: userId,
-    title: prompt.slice(0, 100),
-    user_prompt: prompt,
-    genre: genre ?? null,
-    mood: mood ?? null,
-    vocal_language: language ?? null,
-    duration_seconds: duration ?? null,
-  });
+  // Create song record + credit transaction in batch (song must exist before credit_transaction FK)
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      `INSERT INTO songs (id, user_id, title, user_prompt, genre, mood, vocal_language, duration_seconds, generation_started_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+    ).bind(songId, userId, prompt.slice(0, 100), prompt, genre ?? null, mood ?? null, language ?? null, duration ?? 180),
+    c.env.DB.prepare(
+      "INSERT INTO credit_transactions (id, user_id, amount, reason, song_id) VALUES (?, ?, -1, 'song_generation', ?)"
+    ).bind(txId, userId, songId),
+  ]);
 
   // Trigger Durable Object pipeline (fire and forget from the route's perspective)
   const doId = c.env.SONG_SESSION.idFromName(songId);
