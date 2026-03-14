@@ -387,6 +387,8 @@ songs.get("/:id/stream", optionalAuthGuard(), async (c) => {
     void trackPlay();
   }
 
+  // Determine content type from file extension
+  const contentType = audioKey.endsWith(".mp3") ? "audio/mpeg" : "audio/wav";
   const rangeHeader = c.req.header("Range");
 
   if (rangeHeader) {
@@ -420,7 +422,7 @@ songs.get("/:id/stream", optionalAuthGuard(), async (c) => {
     return new Response(r2Object.body, {
       status: 206,
       headers: {
-        "Content-Type": "audio/wav",
+        "Content-Type": contentType,
         "Content-Length": String(contentLength),
         "Content-Range": `bytes ${start}-${actualEnd}/${size}`,
         "Accept-Ranges": "bytes",
@@ -436,7 +438,7 @@ songs.get("/:id/stream", optionalAuthGuard(), async (c) => {
   return new Response(r2Object.body, {
     status: 200,
     headers: {
-      "Content-Type": "audio/wav",
+      "Content-Type": contentType,
       "Content-Length": String(r2Object.size),
       "Accept-Ranges": "bytes",
     },

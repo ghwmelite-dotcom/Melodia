@@ -119,24 +119,21 @@ async function generateRealMusic(
   const audioKeys: string[] = [];
   const seeds: number[] = [];
 
-  // Call ACE-Step batchSize times with different seeds to ensure multi-variation
-  // works regardless of whether the API supports batch_size > 1 natively.
+  // ACE-Step 1.5 uses an OpenAI-compatible /v1/chat/completions endpoint.
+  // The prompt is formatted as: "tags: ...\nlyrics: ..."
+  // The response includes base64-encoded audio in the message content.
   for (let i = 0; i < batchSize; i++) {
     const signal = AbortSignal.timeout(musicTimeout);
 
+    const prompt = `tags: ${blueprint.style_tags}\nlyrics: ${lyrics}`;
+
     const payload = {
-      tags: blueprint.style_tags,
-      lyrics,
-      duration: blueprint.duration,
-      seed: i, // different seed per variation
-      model: "turbo",
-      infer_step: 8,
-      guidance_scale: 15.0,
-      scheduler_type: "euler",
-      batch_size: 1,
+      model: "acestep-5Hz-lm-4B",
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 4096,
     };
 
-    const response = await fetch(`${env.ACE_STEP_API_URL}/api/generate`, {
+    const response = await fetch(`${env.ACE_STEP_API_URL}/v1/chat/completions`, {
       method: "POST",
       headers,
       body: JSON.stringify(payload),
@@ -148,19 +145,52 @@ async function generateRealMusic(
       throw new Error(`ACE-Step API returned ${response.status}: ${errText}`);
     }
 
-    const audioBuffer = await response.arrayBuffer();
-    const audioKey = `audio/${songId}/variation_${i}.wav`;
+    const data = await response.json() as {
+      choices?: Array<{
+        message?: {
+          content?: string;
+          audio?: Array<{ type: string; audio_url?: { url: string } }>;
+        };
+      }>;
+    };
+
+    // Extract base64 audio from the response
+    const choice = data.choices?.[0];
+    const audioItems = choice?.message?.audio;
+
+    if (!audioItems || audioItems.length === 0) {
+      throw new Error("ACE-Step returned no audio in response");
+    }
+
+    // Find the audio URL (base64 data URI)
+    const audioUrl = audioItems[0]?.audio_url?.url;
+    if (!audioUrl) {
+      throw new Error("ACE-Step audio URL missing from response");
+    }
+
+    // Decode base64 data URI: "data:audio/mpeg;base64,..."
+    const base64Match = audioUrl.match(/^data:audio\/[^;]+;base64,(.+)$/);
+    if (!base64Match) {
+      throw new Error("ACE-Step returned invalid audio data URI format");
+    }
+
+    const binaryString = atob(base64Match[1]);
+    const audioBuffer = new Uint8Array(binaryString.length);
+    for (let j = 0; j < binaryString.length; j++) {
+      audioBuffer[j] = binaryString.charCodeAt(j);
+    }
+
+    // Determine content type from data URI
+    const contentType = audioUrl.startsWith("data:audio/wav") ? "audio/wav" : "audio/mpeg";
+    const extension = contentType === "audio/wav" ? "wav" : "mp3";
+    const audioKey = `audio/${songId}/variation_${i}.${extension}`;
 
     await env.R2_BUCKET.put(audioKey, audioBuffer, {
-      httpMetadata: { contentType: "audio/wav" },
+      httpMetadata: { contentType },
     });
 
-    // Try to read seed from response headers
-    const seedHeader = response.headers.get("x-seed") ?? response.headers.get("x-ace-step-seed");
-    const seed = seedHeader ? parseInt(seedHeader, 10) || i : i;
-
     audioKeys.push(audioKey);
-    seeds.push(seed);
+    seeds.push(i);
   }
 
   return { audioKeys, seeds, variationCount: batchSize };
