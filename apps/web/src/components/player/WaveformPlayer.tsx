@@ -7,6 +7,8 @@ import { Waveform } from "./Waveform.js";
 type WaveformPlayerProps = {
   songId: string;
   waveformData: number[] | null; // From song detail, null = loading/missing
+  /** Which variation to stream (0-based). Defaults to 0 (primary). */
+  variationIndex?: number;
 };
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -20,7 +22,7 @@ function formatTime(seconds: number): string {
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 
-export function WaveformPlayer({ songId, waveformData }: WaveformPlayerProps) {
+export function WaveformPlayer({ songId, waveformData, variationIndex = 0 }: WaveformPlayerProps) {
   const songs = useSongs();
 
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -33,15 +35,31 @@ export function WaveformPlayer({ songId, waveformData }: WaveformPlayerProps) {
   const [audioBlobUrl, setAudioBlobUrl] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Fetch audio blob on mount
+  // Fetch audio blob whenever songId or variationIndex changes
   useEffect(() => {
     let cancelled = false;
 
     async function fetchAudio() {
+      // Pause current playback and reset state
+      const audio = audioRef.current;
+      if (audio) {
+        audio.pause();
+      }
+      setIsPlaying(false);
+      setCurrentTime(0);
+      setDuration(0);
       setIsLoading(true);
       setLoadError(null);
+
+      // Revoke previous blob URL before fetching new one
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
+      }
+      setAudioBlobUrl(null);
+
       try {
-        const blob = await songs.getAudioBlob(songId);
+        const blob = await songs.getAudioBlob(songId, variationIndex);
         if (cancelled) return;
         const url = URL.createObjectURL(blob);
         blobUrlRef.current = url;
@@ -68,7 +86,7 @@ export function WaveformPlayer({ songId, waveformData }: WaveformPlayerProps) {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [songId]);
+  }, [songId, variationIndex]);
 
   // Audio event handlers
   const handleLoadedMetadata = useCallback(() => {
@@ -130,7 +148,9 @@ export function WaveformPlayer({ songId, waveformData }: WaveformPlayerProps) {
   );
 
   const progress = duration > 0 ? currentTime / duration : 0;
-  const waveformBars = waveformData ?? [];
+  // Only use waveform data for the primary variation (index 0).
+  // Non-primary variations don't have a waveform.json stored — show flat fallback.
+  const waveformBars = variationIndex === 0 ? (waveformData ?? []) : [];
 
   return (
     <div className="space-y-3">

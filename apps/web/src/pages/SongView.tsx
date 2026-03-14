@@ -7,6 +7,8 @@ import { WaveformPlayer } from "../components/player/WaveformPlayer.js";
 import { LyricsDisplay } from "../components/song/LyricsDisplay.js";
 import { SongMeta } from "../components/song/SongMeta.js";
 import { LikeButton } from "../components/song/LikeButton.js";
+import { VariationTabs } from "../components/song/VariationTabs.js";
+import { RegenerateModal } from "../components/song/RegenerateModal.js";
 import type { SongDetail } from "@melodia/shared";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -99,6 +101,9 @@ export default function SongView() {
   const [deleteConfirming, setDeleteConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [publishToggling, setPublishToggling] = useState(false);
+  // Variation & regeneration state
+  const [playingVariation, setPlayingVariation] = useState(0);
+  const [isRegenerateOpen, setIsRegenerateOpen] = useState(false);
 
   // Fetch song details
   const fetchSong = useCallback(async () => {
@@ -107,6 +112,8 @@ export default function SongView() {
       const data = await songs.getSong(id);
       setSong(data);
       setLoadingState("loaded");
+      // Reset playing variation to the song's current primary index
+      setPlayingVariation(data.variation_index ?? 0);
     } catch {
       setLoadingState("error");
     }
@@ -135,6 +142,26 @@ export default function SongView() {
       setDeleteConfirming(false);
     }
   }, [id, songs, navigate]);
+
+  // Set a variation as primary (select-variation API + refetch)
+  const handleSetPrimary = useCallback(
+    async (variationIndex: number) => {
+      if (!id) return;
+      try {
+        await songs.selectVariation(id, variationIndex);
+        await fetchSong();
+      } catch {
+        // Silently fail — variation is still playable, just not persisted
+      }
+    },
+    [id, songs, fetchSong]
+  );
+
+  // Called when RegenerateModal submits — refetch song (will be "pending") and refresh credits
+  const handleRegenerated = useCallback(async () => {
+    await fetchSong();
+    await refresh();
+  }, [fetchSong, refresh]);
 
   // Toggle publish state
   const handlePublishToggle = useCallback(async () => {
@@ -297,7 +324,11 @@ export default function SongView() {
   // require a new API endpoint.
   const waveformData: number[] | null = null;
 
+  const variationCount = song.variation_count ?? 1;
+  const primaryIndex = song.variation_index ?? 0;
+
   return (
+    <>
     <div className="space-y-6 max-w-4xl mx-auto">
       {/* Back link */}
       <Link
@@ -379,7 +410,7 @@ export default function SongView() {
             )}
           </div>
 
-          {/* Action row: publish toggle (owner) + like button (non-owner, public) + delete (owner) */}
+          {/* Action row: publish toggle (owner) + regenerate + like button (non-owner, public) + delete (owner) */}
           <div className="pt-2 flex flex-wrap items-center gap-3">
             {/* Publish toggle — only for owner */}
             {isOwner && (
@@ -412,6 +443,38 @@ export default function SongView() {
                     Make Public
                   </>
                 )}
+              </button>
+            )}
+
+            {/* Regenerate button — only for owner */}
+            {isOwner && (
+              <button
+                onClick={() => setIsRegenerateOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer"
+                style={{
+                  backgroundColor: "var(--color-surface-2)",
+                  color: "white",
+                }}
+              >
+                <svg
+                  className="w-4 h-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    d="M1 4v6h6M23 20v-6h-6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                Regenerate
               </button>
             )}
 
@@ -468,6 +531,25 @@ export default function SongView() {
         </div>
       </div>
 
+      {/* Variation Tabs — only visible when variationCount > 1 */}
+      {variationCount > 1 && (
+        <div
+          className="rounded-2xl border px-5 py-4"
+          style={{
+            backgroundColor: "var(--color-surface-1)",
+            borderColor: "var(--color-surface-3)",
+          }}
+        >
+          <VariationTabs
+            variationCount={variationCount}
+            selectedIndex={playingVariation}
+            primaryIndex={primaryIndex}
+            onSelect={(i) => setPlayingVariation(i)}
+            onSetPrimary={(i) => void handleSetPrimary(i)}
+          />
+        </div>
+      )}
+
       {/* Player */}
       <div
         className="rounded-2xl border p-5"
@@ -476,7 +558,11 @@ export default function SongView() {
           borderColor: "var(--color-surface-3)",
         }}
       >
-        <WaveformPlayer songId={song.id} waveformData={waveformData} />
+        <WaveformPlayer
+          songId={song.id}
+          waveformData={waveformData}
+          variationIndex={playingVariation}
+        />
       </div>
 
       {/* Lyrics + Metadata — two column on desktop */}
@@ -510,5 +596,14 @@ export default function SongView() {
         </div>
       </div>
     </div>
+
+    {/* Regenerate Modal — portal-style, rendered outside main div */}
+    <RegenerateModal
+      songId={song.id}
+      isOpen={isRegenerateOpen}
+      onClose={() => setIsRegenerateOpen(false)}
+      onRegenerated={() => void handleRegenerated()}
+    />
+    </>
   );
 }
