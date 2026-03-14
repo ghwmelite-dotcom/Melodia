@@ -108,6 +108,33 @@ class ApiClient {
   patch<T>(path: string, body?: unknown, options?: Omit<RequestOptions, "method" | "body">): Promise<T> {
     return this.request<T>(path, { ...options, method: "PATCH", body });
   }
+
+  async getBlob(path: string, retry = true): Promise<Blob> {
+    const headers: Record<string, string> = {};
+    if (this.accessToken) {
+      headers["Authorization"] = `Bearer ${this.accessToken}`;
+    }
+
+    const response = await fetch(path, {
+      method: "GET",
+      credentials: "include",
+      headers,
+    });
+
+    // Handle 401 with refresh retry
+    if (response.status === 401 && retry && this.onUnauthorized) {
+      const refreshed = await this.onUnauthorized();
+      if (refreshed) {
+        return this.getBlob(path, false);
+      }
+    }
+
+    if (!response.ok) {
+      throw new ApiError(response.status, response.statusText);
+    }
+
+    return response.blob();
+  }
 }
 
 export const api = new ApiClient();

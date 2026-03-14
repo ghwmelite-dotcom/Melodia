@@ -14,6 +14,7 @@ import type { User } from "@melodia/shared";
 
 interface AuthState {
   user: User | null;
+  accessToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
 }
@@ -29,14 +30,16 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
       api.setAccessToken(action.payload.token);
       return {
         user: action.payload.user,
+        accessToken: action.payload.token,
         isAuthenticated: true,
         isLoading: false,
       };
     case "LOGOUT":
       api.setAccessToken(null);
-      return { user: null, isAuthenticated: false, isLoading: false };
+      return { user: null, accessToken: null, isAuthenticated: false, isLoading: false };
     case "SET_LOADING":
       return { ...state, isLoading: action.payload };
+
     default:
       return state;
   }
@@ -66,6 +69,7 @@ interface RefreshResponse {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [state, dispatch] = useReducer(authReducer, {
     user: null,
+    accessToken: null,
     isAuthenticated: false,
     isLoading: true,
   });
