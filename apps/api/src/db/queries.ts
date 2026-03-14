@@ -160,6 +160,152 @@ export const refreshTokenQueries = {
       .run(),
 };
 
+export const songQueries = {
+  create: (
+    db: D1Database,
+    song: {
+      id: string;
+      user_id: string;
+      title: string;
+      user_prompt: string;
+      genre?: string | null;
+      mood?: string | null;
+      vocal_language?: string | null;
+      duration_seconds?: number | null;
+    }
+  ) =>
+    db
+      .prepare(
+        `INSERT INTO songs (id, user_id, title, user_prompt, genre, mood, vocal_language, duration_seconds, generation_started_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+      )
+      .bind(
+        song.id,
+        song.user_id,
+        song.title,
+        song.user_prompt,
+        song.genre ?? null,
+        song.mood ?? null,
+        song.vocal_language ?? null,
+        song.duration_seconds ?? 180
+      )
+      .run(),
+
+  findById: (db: D1Database, id: string) =>
+    db.prepare("SELECT * FROM songs WHERE id = ?").bind(id).first(),
+
+  findByIdAndUser: (db: D1Database, id: string, userId: string) =>
+    db
+      .prepare("SELECT * FROM songs WHERE id = ? AND user_id = ?")
+      .bind(id, userId)
+      .first(),
+
+  listByUser: (
+    db: D1Database,
+    userId: string,
+    opts: { status?: string; limit?: number; cursor?: string }
+  ) => {
+    const limit = Math.min(opts.limit ?? 20, 50);
+    let sql = "SELECT * FROM songs WHERE user_id = ?";
+    const params: (string | number)[] = [userId];
+
+    if (opts.status) {
+      sql += " AND status = ?";
+      params.push(opts.status);
+    }
+    if (opts.cursor) {
+      sql += " AND id < ?";
+      params.push(opts.cursor);
+    }
+    sql += " ORDER BY id DESC LIMIT ?";
+    params.push(limit + 1); // Fetch one extra to determine if there's a next page
+
+    return db
+      .prepare(sql)
+      .bind(...params)
+      .all();
+  },
+
+  updateStatus: (db: D1Database, id: string, status: string) =>
+    db
+      .prepare(
+        "UPDATE songs SET status = ?, updated_at = datetime('now') WHERE id = ?"
+      )
+      .bind(status, id)
+      .run(),
+
+  updateTitle: (db: D1Database, id: string, title: string) =>
+    db
+      .prepare(
+        "UPDATE songs SET title = ?, updated_at = datetime('now') WHERE id = ?"
+      )
+      .bind(title, id)
+      .run(),
+
+  updateCompleted: (
+    db: D1Database,
+    id: string,
+    fields: {
+      title: string;
+      genre: string;
+      sub_genre: string;
+      mood: string;
+      bpm: number;
+      key_signature: string;
+      time_signature: string;
+      duration_seconds: number;
+      vocal_style: string;
+      vocal_language: string;
+      instruments: string;
+      style_tags: string;
+      lyrics: string;
+      lyrics_structured: string;
+      audio_url: string;
+      audio_format: string;
+      artwork_url: string;
+      artwork_prompt: string;
+      waveform_url: string;
+      ace_step_seed: number;
+      ace_step_model: string;
+      ace_step_steps: number;
+    }
+  ) =>
+    db
+      .prepare(
+        `UPDATE songs SET
+          status = 'completed',
+          title = ?, genre = ?, sub_genre = ?, mood = ?,
+          bpm = ?, key_signature = ?, time_signature = ?,
+          duration_seconds = ?, vocal_style = ?, vocal_language = ?,
+          instruments = ?, style_tags = ?, lyrics = ?, lyrics_structured = ?,
+          audio_url = ?, audio_format = ?, artwork_url = ?, artwork_prompt = ?,
+          waveform_url = ?, ace_step_seed = ?, ace_step_model = ?, ace_step_steps = ?,
+          generation_completed_at = datetime('now'), updated_at = datetime('now')
+        WHERE id = ?`
+      )
+      .bind(
+        fields.title, fields.genre, fields.sub_genre, fields.mood,
+        fields.bpm, fields.key_signature, fields.time_signature,
+        fields.duration_seconds, fields.vocal_style, fields.vocal_language,
+        fields.instruments, fields.style_tags, fields.lyrics, fields.lyrics_structured,
+        fields.audio_url, fields.audio_format, fields.artwork_url, fields.artwork_prompt,
+        fields.waveform_url, fields.ace_step_seed, fields.ace_step_model, fields.ace_step_steps,
+        id
+      )
+      .run(),
+
+  updateFailed: (db: D1Database, id: string) =>
+    db
+      .prepare(
+        "UPDATE songs SET status = 'failed', updated_at = datetime('now') WHERE id = ?"
+      )
+      .bind(id)
+      .run(),
+
+  delete: (db: D1Database, id: string) =>
+    db.prepare("DELETE FROM songs WHERE id = ?").bind(id).run(),
+};
+
 export const creditQueries = {
   getBalance: (db: D1Database, userId: string) =>
     db
