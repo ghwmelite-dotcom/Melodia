@@ -3,6 +3,7 @@ import type { Env, Variables } from "./types.js";
 import { corsMiddleware } from "./middleware/cors.js";
 import { AppError, errorResponse } from "./middleware/error-handler.js";
 import { auth as authRoutes } from "./routes/auth.js";
+import billingRoutes from "./routes/billing.js";
 import creditsRoutes from "./routes/credits.js";
 import settingsRoutes from "./routes/settings.js";
 import songsRoutes from "./routes/songs.js";
@@ -35,6 +36,7 @@ app.get("/api/health", (c) => c.json({ status: "ok" }));
 
 // Route mounting
 app.route("/api/auth", authRoutes);
+app.route("/api/billing", billingRoutes);
 app.route("/api/credits", creditsRoutes);
 app.route("/api/settings", settingsRoutes);
 app.route("/api/songs", songsRoutes);
