@@ -1,6 +1,7 @@
 import { api } from "../lib/api.js";
 import type {
   GenerateSongInput,
+  RegenerateSongInput,
   Song,
   SongDetail,
   SongWithCreator,
@@ -51,6 +52,28 @@ interface UpdateSongResponse {
   song: SongDetail;
 }
 
+interface RegenerateResponse {
+  success: boolean;
+  song_id: string;
+  status: string;
+}
+
+interface SelectVariationResponse {
+  success: boolean;
+  song: SongDetail;
+}
+
+interface VariationItem {
+  index: number;
+  is_selected: boolean;
+}
+
+interface GetVariationsResponse {
+  variations: VariationItem[];
+  selected_index: number;
+  count: number;
+}
+
 export function useSongs() {
   return {
     generate: async (input: GenerateSongInput): Promise<{ song_id: string }> => {
@@ -83,8 +106,12 @@ export function useSongs() {
       await api.delete(`/api/songs/${id}`);
     },
 
-    getAudioBlob: async (id: string): Promise<Blob> => {
-      return api.getBlob(`/api/songs/${id}/stream`);
+    getAudioBlob: async (id: string, variationIndex = 0): Promise<Blob> => {
+      const path =
+        variationIndex > 0
+          ? `/api/songs/${id}/stream?variation=${variationIndex}`
+          : `/api/songs/${id}/stream`;
+      return api.getBlob(path);
     },
 
     // ─── Explore ──────────────────────────────────────────────────────────────
@@ -163,6 +190,40 @@ export function useSongs() {
     ): Promise<SongDetail> => {
       const res = await api.put<UpdateSongResponse>(`/api/songs/${id}`, fields);
       return res.song;
+    },
+
+    // ─── Regenerate ───────────────────────────────────────────────────────────
+
+    regenerate: async (
+      songId: string,
+      keep: RegenerateSongInput["keep"]
+    ): Promise<{ song_id: string; status: string }> => {
+      const res = await api.post<RegenerateResponse>(
+        `/api/songs/${songId}/regenerate`,
+        { keep }
+      );
+      return { song_id: res.song_id, status: res.status };
+    },
+
+    // ─── Variation selection ──────────────────────────────────────────────────
+
+    selectVariation: async (
+      songId: string,
+      variationIndex: number
+    ): Promise<SongDetail> => {
+      const res = await api.put<SelectVariationResponse>(
+        `/api/songs/${songId}/select-variation`,
+        { variation_index: variationIndex }
+      );
+      return res.song;
+    },
+
+    // ─── Get variations list ──────────────────────────────────────────────────
+
+    getVariations: async (
+      songId: string
+    ): Promise<{ variations: VariationItem[]; selected_index: number; count: number }> => {
+      return api.get<GetVariationsResponse>(`/api/songs/${songId}/variations`);
     },
   };
 }
