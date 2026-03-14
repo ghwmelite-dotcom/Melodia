@@ -1,7 +1,9 @@
+import { STAGE_TIMEOUTS } from "@melodia/shared";
 import type { Env } from "../types.js";
 import { verifyJwt } from "../lib/jwt.js";
 import { songQueries } from "../db/queries.js";
 import { generateBlueprint } from "../services/blueprint.service.js";
+import type { SongBlueprint } from "../services/blueprint.service.js";
 import { generateLyrics, refineLyrics } from "../services/lyrics.service.js";
 import { generateMusic } from "../services/music.service.js";
 import { generateArtwork } from "../services/artwork.service.js";
@@ -50,6 +52,9 @@ type StartBody = {
     mood?: string;
     language?: string;
     duration?: number;
+    batchSize?: number;
+    cachedBlueprint?: SongBlueprint;
+    cachedLyrics?: string;
   };
 };
 
@@ -208,6 +213,10 @@ export class SongGenerationSession {
     _userId: string,
     options?: StartBody["options"]
   ): Promise<void> {
+    const batchSize = options?.batchSize ?? 1;
+    const cachedBlueprint = options?.cachedBlueprint;
+    const cachedLyrics = options?.cachedLyrics;
+
     // Initialise state
     const initialState: GenerationState = {
       songId,
@@ -223,41 +232,70 @@ export class SongGenerationSession {
       await songQueries.updateStatus(this.env.DB, songId, "generating_lyrics");
       await this.updateStage("blueprint", "in_progress");
 
-      const blueprint = await generateBlueprint(this.env.AI, userPrompt, {
-        genre: options?.genre,
-        mood: options?.mood,
-        language: options?.language,
-        duration: options?.duration,
-      });
+      let blueprint: SongBlueprint;
+      if (cachedBlueprint) {
+        // Use cached blueprint — skip LLM call
+        blueprint = cachedBlueprint;
+        await songQueries.updateTitle(this.env.DB, songId, blueprint.title);
+        await this.updateStage("blueprint", "completed", {
+          title: blueprint.title,
+          genre: blueprint.genre,
+          mood: blueprint.mood,
+        });
+      } else {
+        blueprint = await generateBlueprint(this.env.AI, userPrompt, {
+          genre: options?.genre,
+          mood: options?.mood,
+          language: options?.language,
+          duration: options?.duration,
+        });
 
-      await songQueries.updateTitle(this.env.DB, songId, blueprint.title);
-      await this.updateStage("blueprint", "completed", {
-        title: blueprint.title,
-        genre: blueprint.genre,
-        mood: blueprint.mood,
-      });
+        await songQueries.updateTitle(this.env.DB, songId, blueprint.title);
+        await this.updateStage("blueprint", "completed", {
+          title: blueprint.title,
+          genre: blueprint.genre,
+          mood: blueprint.mood,
+        });
+      }
 
       // ----------------------------------------------------------------
       // Stage 2: Lyrics generation
       // ----------------------------------------------------------------
       await this.updateStage("lyrics", "in_progress");
-      const rawLyrics = await generateLyrics(this.env.AI, blueprint);
-      await this.updateStage("lyrics", "completed");
 
-      // ----------------------------------------------------------------
-      // Stage 3: Lyrics refinement
-      // ----------------------------------------------------------------
-      await this.updateStage("refinement", "in_progress");
-      const { lyrics, scores } = await refineLyrics(this.env.AI, rawLyrics, blueprint);
-      await this.updateStage("refinement", "completed", { scores });
+      let lyrics: string;
+      if (cachedLyrics) {
+        // Use cached lyrics — skip both lyrics and refinement LLM calls
+        lyrics = cachedLyrics;
+        await this.updateStage("lyrics", "completed");
+        await this.updateStage("refinement", "completed", { scores: {} });
+      } else {
+        const rawLyrics = await generateLyrics(this.env.AI, blueprint);
+        await this.updateStage("lyrics", "completed");
+
+        // ----------------------------------------------------------------
+        // Stage 3: Lyrics refinement
+        // ----------------------------------------------------------------
+        await this.updateStage("refinement", "in_progress");
+        const { lyrics: refinedLyrics, scores } = await refineLyrics(this.env.AI, rawLyrics, blueprint);
+        lyrics = refinedLyrics;
+        await this.updateStage("refinement", "completed", { scores });
+      }
 
       // ----------------------------------------------------------------
       // Stage 4: Music generation
       // ----------------------------------------------------------------
       await songQueries.updateStatus(this.env.DB, songId, "generating_music");
       await this.updateStage("music", "in_progress");
-      const audioResult = await generateMusic(this.env, blueprint, lyrics, songId);
-      await this.updateStage("music", "completed", { audioKey: audioResult.audioKey });
+
+      // Scale timeout by batchSize (capped at 2x) to allow enough time for all variations
+      const musicTimeoutMs = STAGE_TIMEOUTS.MUSIC * Math.min(batchSize, 2);
+
+      const audioResult = await generateMusic(this.env, blueprint, lyrics, songId, batchSize, musicTimeoutMs);
+      await this.updateStage("music", "completed", {
+        audioKeys: audioResult.audioKeys,
+        variation_count: audioResult.variationCount,
+      });
 
       // ----------------------------------------------------------------
       // Stage 5: Artwork generation
