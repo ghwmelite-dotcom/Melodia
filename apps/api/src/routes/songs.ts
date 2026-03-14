@@ -1,7 +1,14 @@
 import { Hono } from "hono";
 import { ulid } from "ulidx";
 import * as v from "valibot";
-import { GenerateSongSchema, UpdateSongSchema, PLAN_CREDITS } from "@melodia/shared";
+import {
+  GenerateSongSchema,
+  UpdateSongSchema,
+  PLAN_CREDITS,
+  PLAN_VARIATIONS,
+  RegenerateSongSchema,
+  SelectVariationSchema,
+} from "@melodia/shared";
 import type { Env, Variables } from "../types.js";
 import { AppError } from "../middleware/error-handler.js";
 import { authGuard, optionalAuthGuard } from "../middleware/auth.js";
@@ -11,6 +18,7 @@ import {
   likeQueries,
   billingQueries,
 } from "../db/queries.js";
+import { generateWaveformPeaks } from "../services/postprocess.service.js";
 
 type HonoContext = { Bindings: Env; Variables: Variables };
 
@@ -181,6 +189,9 @@ songs.post("/generate", authGuard(), async (c) => {
   const planMax = PLAN_CREDITS[currentUser.plan] ?? 5;
   const isUnlimited = planMax === -1;
 
+  // Calculate batchSize based on plan
+  const batchSize = PLAN_VARIATIONS[currentUser.plan] ?? 1;
+
   if (isUnlimited) {
     // Unlimited plan — skip credit deduction, create song + log zero-amount transaction
     await c.env.DB.batch([
@@ -249,7 +260,7 @@ songs.post("/generate", authGuard(), async (c) => {
         songId,
         userPrompt: prompt,
         userId,
-        options: { genre, mood, language, duration },
+        options: { genre, mood, language, duration, batchSize },
       }),
     })
   );
@@ -316,6 +327,8 @@ songs.get("/:id/stream", optionalAuthGuard(), async (c) => {
     user_id: string;
     audio_url: string | null;
     is_public: number | boolean;
+    variation_index: number;
+    variation_count: number;
   } | null;
 
   if (!song) {
@@ -331,6 +344,28 @@ songs.get("/:id/stream", optionalAuthGuard(), async (c) => {
 
   if (!song.audio_url) {
     throw new AppError("NOT_FOUND", "Audio not available yet", 404);
+  }
+
+  // Resolve audio key — support ?variation=N query param
+  const variationParam = c.req.query("variation");
+  let audioKey: string;
+  if (variationParam !== undefined) {
+    const variationIndex = parseInt(variationParam, 10);
+    const variationCount = song.variation_count ?? 1;
+    if (
+      isNaN(variationIndex) ||
+      variationIndex < 0 ||
+      variationIndex >= variationCount
+    ) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        `Invalid variation index. Must be 0–${variationCount - 1}`,
+        400
+      );
+    }
+    audioKey = `audio/${id}/variation_${variationIndex}.wav`;
+  } else {
+    audioKey = `audio/${id}/variation_${song.variation_index ?? 0}.wav`;
   }
 
   // Fire-and-forget play count tracking (dedup via KV)
@@ -371,7 +406,7 @@ songs.get("/:id/stream", optionalAuthGuard(), async (c) => {
       r2Range.length = end - start + 1;
     }
 
-    const r2Object = await c.env.R2_BUCKET.get(song.audio_url, {
+    const r2Object = await c.env.R2_BUCKET.get(audioKey, {
       range: r2Range,
     });
     if (!r2Object) {
@@ -393,7 +428,7 @@ songs.get("/:id/stream", optionalAuthGuard(), async (c) => {
     });
   }
 
-  const r2Object = await c.env.R2_BUCKET.get(song.audio_url);
+  const r2Object = await c.env.R2_BUCKET.get(audioKey);
   if (!r2Object) {
     throw new AppError("NOT_FOUND", "Audio file not found", 404);
   }
@@ -405,6 +440,287 @@ songs.get("/:id/stream", optionalAuthGuard(), async (c) => {
       "Content-Length": String(r2Object.size),
       "Accept-Ranges": "bytes",
     },
+  });
+});
+
+// ----------------------------------------------------------------------------
+// POST /:id/regenerate  (protected — owner only)
+// Registered before /:id wildcard — Hono resolves sub-routes correctly.
+// ----------------------------------------------------------------------------
+songs.post("/:id/regenerate", authGuard(), async (c) => {
+  const userId = c.get("userId");
+  const { id } = c.req.param();
+
+  const body = await c.req.json().catch(() => {
+    throw new AppError("VALIDATION_ERROR", "Invalid JSON body", 400);
+  });
+
+  const result = v.safeParse(RegenerateSongSchema, body);
+  if (!result.success) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      result.issues.map((i) => i.message).join(", "),
+      400
+    );
+  }
+
+  const { keep } = result.output;
+
+  // Verify ownership
+  const song = (await songQueries.findByIdAndUser(c.env.DB, id, userId)) as {
+    id: string;
+    user_id: string;
+    status: string;
+    title: string;
+    genre: string | null;
+    sub_genre: string | null;
+    mood: string | null;
+    bpm: number | null;
+    key_signature: string | null;
+    time_signature: string | null;
+    duration_seconds: number;
+    vocal_style: string | null;
+    vocal_language: string | null;
+    instruments: string | null;
+    style_tags: string | null;
+    lyrics: string | null;
+    user_prompt: string;
+    variation_count: number;
+  } | null;
+
+  if (!song) {
+    throw new AppError("NOT_FOUND", "Song not found", 404);
+  }
+
+  if (song.status !== "completed" && song.status !== "failed") {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "Song must be completed or failed to regenerate",
+      400
+    );
+  }
+
+  // Lazy credit reset + deduct credit (same atomic pattern as generate)
+  await ensureCreditsReset(c.env.DB, userId);
+
+  const currentUser = (await c.env.DB.prepare(
+    "SELECT plan, credits_remaining FROM users WHERE id = ?"
+  )
+    .bind(userId)
+    .first()) as { plan: string; credits_remaining: number } | null;
+
+  if (!currentUser) {
+    throw new AppError("NOT_FOUND", "User not found", 404);
+  }
+
+  const planMax = PLAN_CREDITS[currentUser.plan] ?? 5;
+  const isUnlimited = planMax === -1;
+  const batchSize = PLAN_VARIATIONS[currentUser.plan] ?? 1;
+  const txId = ulid();
+
+  if (isUnlimited) {
+    await c.env.DB.prepare(
+      "INSERT INTO credit_transactions (id, user_id, amount, reason, song_id) VALUES (?, ?, 0, 'song_generation', ?)"
+    )
+      .bind(txId, userId, id)
+      .run();
+  } else {
+    const deductResult = await c.env.DB.prepare(
+      "UPDATE users SET credits_remaining = credits_remaining - 1, updated_at = datetime('now') WHERE id = ? AND credits_remaining > 0"
+    )
+      .bind(userId)
+      .run();
+
+    if (deductResult.meta.changes === 0) {
+      throw new AppError("FORBIDDEN", "Insufficient credits", 403);
+    }
+
+    await c.env.DB.prepare(
+      "INSERT INTO credit_transactions (id, user_id, amount, reason, song_id) VALUES (?, ?, -1, 'song_generation', ?)"
+    )
+      .bind(txId, userId, id)
+      .run();
+  }
+
+  // Extract cached data based on keep option
+  let cachedBlueprint: import("../services/blueprint.service.js").SongBlueprint | undefined;
+  let cachedLyrics: string | undefined;
+
+  if (keep === "blueprint" || keep === "lyrics") {
+    cachedBlueprint = {
+      title: song.title,
+      genre: song.genre ?? "",
+      sub_genre: song.sub_genre ?? "",
+      mood: song.mood ?? "",
+      bpm: song.bpm ?? 120,
+      key: song.key_signature ?? "C major",
+      time_signature: song.time_signature ?? "4/4",
+      duration: song.duration_seconds ?? 180,
+      vocal_style: song.vocal_style ?? "",
+      vocal_language: song.vocal_language ?? "en",
+      instruments: song.instruments ? (JSON.parse(song.instruments) as string[]) : [],
+      style_tags: song.style_tags ?? "",
+      artwork_mood: song.mood ?? "",
+      song_concept: song.user_prompt,
+    };
+  }
+
+  if (keep === "lyrics" && song.lyrics) {
+    cachedLyrics = song.lyrics;
+  }
+
+  // Clean up old R2 files: audio variations + waveform
+  try {
+    const listed = await c.env.R2_BUCKET.list({
+      prefix: `audio/${id}/variation_`,
+    });
+    if (listed.objects.length > 0) {
+      await Promise.all(
+        listed.objects.map((obj) => c.env.R2_BUCKET.delete(obj.key))
+      );
+    }
+    await c.env.R2_BUCKET.delete(`waveforms/${id}/waveform.json`);
+  } catch {
+    // Non-critical — continue even if cleanup partially fails
+  }
+
+  // Update song status to pending
+  await songQueries.updateStatus(c.env.DB, id, "pending");
+
+  // Trigger Durable Object pipeline
+  const doId = c.env.SONG_SESSION.idFromName(id);
+  const stub = c.env.SONG_SESSION.get(doId);
+
+  const startUrl = new URL(c.req.url);
+  startUrl.pathname = "/start";
+
+  await stub.fetch(
+    new Request(startUrl.toString(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        songId: id,
+        userPrompt: song.user_prompt,
+        userId,
+        options: {
+          batchSize,
+          cachedBlueprint,
+          cachedLyrics,
+        },
+      }),
+    })
+  );
+
+  return c.json({ success: true, song_id: id, status: "pending" }, 202);
+});
+
+// ----------------------------------------------------------------------------
+// PUT /:id/select-variation  (protected — owner only)
+// ----------------------------------------------------------------------------
+songs.put("/:id/select-variation", authGuard(), async (c) => {
+  const userId = c.get("userId");
+  const { id } = c.req.param();
+
+  const body = await c.req.json().catch(() => {
+    throw new AppError("VALIDATION_ERROR", "Invalid JSON body", 400);
+  });
+
+  const result = v.safeParse(SelectVariationSchema, body);
+  if (!result.success) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      result.issues.map((i) => i.message).join(", "),
+      400
+    );
+  }
+
+  const { variation_index: variationIndex } = result.output;
+
+  const song = (await songQueries.findByIdAndUser(c.env.DB, id, userId)) as {
+    id: string;
+    status: string;
+    variation_count: number;
+    variation_index: number;
+  } | null;
+
+  if (!song) {
+    throw new AppError("NOT_FOUND", "Song not found", 404);
+  }
+
+  if (song.status !== "completed") {
+    throw new AppError("VALIDATION_ERROR", "Song must be completed to select a variation", 400);
+  }
+
+  const variationCount = song.variation_count ?? 1;
+  if (variationIndex >= variationCount) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      `Variation index ${variationIndex} out of range (0–${variationCount - 1})`,
+      400
+    );
+  }
+
+  const newAudioUrl = `audio/${id}/variation_${variationIndex}.wav`;
+
+  // Update variation selection in DB
+  await songQueries.selectVariation(c.env.DB, id, variationIndex, newAudioUrl);
+
+  // Regenerate waveform for the newly selected variation
+  try {
+    const peaks = await generateWaveformPeaks(c.env.R2_BUCKET, newAudioUrl);
+    const waveformKey = `waveforms/${id}/waveform.json`;
+    await c.env.R2_BUCKET.put(waveformKey, JSON.stringify(peaks), {
+      httpMetadata: { contentType: "application/json" },
+    });
+  } catch (err) {
+    console.error("Waveform regeneration failed (non-fatal):", err);
+    // Non-critical — variation selection still succeeds
+  }
+
+  const updated = await songQueries.findByIdPublic(c.env.DB, id);
+  return c.json({ success: true, song: updated });
+});
+
+// ----------------------------------------------------------------------------
+// GET /:id/variations  (optionally authenticated — public songs accessible)
+// ----------------------------------------------------------------------------
+songs.get("/:id/variations", optionalAuthGuard(), async (c) => {
+  const userId = c.get("userId") as string | undefined;
+  const { id } = c.req.param();
+
+  const song = (await songQueries.findByIdPublic(c.env.DB, id)) as {
+    id: string;
+    user_id: string;
+    is_public: number | boolean;
+    variation_count: number;
+    variation_index: number;
+    status: string;
+  } | null;
+
+  if (!song) {
+    throw new AppError("NOT_FOUND", "Song not found", 404);
+  }
+
+  const isPublic = song.is_public === 1 || song.is_public === true;
+  const isOwner = userId !== undefined && song.user_id === userId;
+
+  if (!isPublic && !isOwner) {
+    throw new AppError("NOT_FOUND", "Song not found", 404);
+  }
+
+  const variationCount = song.variation_count ?? 1;
+  const selectedIndex = song.variation_index ?? 0;
+
+  const variations = Array.from({ length: variationCount }, (_, i) => ({
+    index: i,
+    is_selected: i === selectedIndex,
+  }));
+
+  return c.json({
+    success: true,
+    variations,
+    selected_index: selectedIndex,
+    count: variationCount,
   });
 });
 
