@@ -1,18 +1,224 @@
 @import "tailwindcss";
 
 @theme {
-  --color-charcoal: #1A1A2E;
-  --color-midnight: #16213E;
+  --color-charcoal: #0f0f1a;
+  --color-midnight: #12122a;
   --color-amber: #F0A500;
+  --color-amber-light: #FFD166;
   --color-coral: #E74C3C;
   --color-teal: #00D2FF;
-  --color-surface-1: #1E1E36;
-  --color-surface-2: #252542;
-  --color-surface-3: #2D2D50;
+  --color-surface-1: #16162e;
+  --color-surface-2: #1c1c38;
+  --color-surface-3: #242448;
+  --color-surface-4: #2d2d58;
+  --font-display: "Outfit", system-ui, -apple-system, sans-serif;
+  --font-body: "DM Sans", system-ui, -apple-system, sans-serif;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   background-color: var(--color-charcoal);
   color: #e2e8f0;
-  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+}
+
+/* ── Gradient mesh keyframes ───────────────────────────── */
+@keyframes meshShift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes floatUp {
+  0%, 100% { transform: translateY(0px) rotate(0deg); opacity: 0.6; }
+  33%       { transform: translateY(-18px) rotate(5deg); opacity: 0.9; }
+  66%       { transform: translateY(-8px) rotate(-3deg); opacity: 0.75; }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeInScale {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 20px rgba(240, 165, 0, 0.2); }
+  50%       { box-shadow: 0 0 40px rgba(240, 165, 0, 0.45); }
+}
+
+@keyframes waveBar {
+  0%, 100% { transform: scaleY(0.3); }
+  50%       { transform: scaleY(1); }
+}
+
+@keyframes orb-drift-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%       { transform: translate(40px, -30px) scale(1.08); }
+  66%       { transform: translate(-20px, 20px) scale(0.95); }
+}
+
+@keyframes orb-drift-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%       { transform: translate(-50px, 25px) scale(1.05); }
+  66%       { transform: translate(30px, -15px) scale(0.97); }
+}
+
+@keyframes orb-drift-3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%       { transform: translate(20px, 30px) scale(1.1); }
+}
+
+@keyframes counterTick {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Utility classes ───────────────────────────────────── */
+.text-gradient-amber {
+  background: linear-gradient(135deg, #F0A500 0%, #FFD166 50%, #F0A500 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: meshShift 4s linear infinite;
+}
+
+.glass-card {
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  background: rgba(22, 22, 46, 0.85);
+  border: 1px solid rgba(240, 165, 0, 0.12);
+  box-shadow:
+    0 4px 32px rgba(0, 0, 0, 0.4),
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 0 60px rgba(240, 165, 0, 0.04);
+}
+
+.glass-card:hover {
+  border-color: rgba(240, 165, 0, 0.22);
+  box-shadow:
+    0 8px 48px rgba(0, 0, 0, 0.5),
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 0 80px rgba(240, 165, 0, 0.08);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #F0A500 0%, #D4920A 100%);
+  color: #0f0f1a;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  box-shadow: 0 4px 24px rgba(240, 165, 0, 0.35), 0 1px 0 rgba(255,255,255,0.15) inset;
+  transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, #FFD166 0%, #F0A500 100%);
+  box-shadow: 0 6px 36px rgba(240, 165, 0, 0.55), 0 1px 0 rgba(255,255,255,0.2) inset;
+  transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: 0 2px 16px rgba(240, 165, 0, 0.3);
+}
+
+.btn-ghost {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  font-family: var(--font-display);
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(240, 165, 0, 0.25);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.input-field {
+  background: rgba(18, 18, 42, 0.7);
+  border: 1px solid rgba(45, 45, 88, 0.8);
+  color: #f1f5f9;
+  font-family: var(--font-body);
+  transition: all 0.2s ease;
+}
+
+.input-field:focus {
+  border-color: rgba(240, 165, 0, 0.6);
+  box-shadow: 0 0 0 3px rgba(240, 165, 0, 0.12), 0 0 20px rgba(240, 165, 0, 0.08);
+  outline: none;
+}
+
+.input-field::placeholder {
+  color: rgba(148, 163, 184, 0.45);
+}
+
+/* ── Mesh background ───────────────────────────────────── */
+.mesh-bg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.mesh-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  will-change: transform;
+}
+
+/* ── Waveform bars ─────────────────────────────────────── */
+.waveform {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.waveform-bar {
+  width: 3px;
+  border-radius: 2px;
+  background: linear-gradient(to top, #F0A500, #FFD166);
+  animation: waveBar 1.2s ease-in-out infinite;
+  transform-origin: bottom;
+}
+
+/* ── Stagger helpers ───────────────────────────────────── */
+.anim-fadeup {
+  opacity: 0;
+  animation: fadeInUp 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.anim-fadescale {
+  opacity: 0;
+  animation: fadeInScale 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
