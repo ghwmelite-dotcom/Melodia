@@ -56,6 +56,11 @@ export function useWebSocket(songId: string): UseWebSocketReturn {
 
   const buildWsUrl = useCallback(
     (token: string): string => {
+      const apiBase = import.meta.env.VITE_API_URL as string | undefined;
+      if (apiBase) {
+        const wsUrl = apiBase.replace(/^http/, "ws");
+        return `${wsUrl}/api/songs/${songId}/live?token=${encodeURIComponent(token)}`;
+      }
       const { protocol, host } = window.location;
       const wsProtocol = protocol === "https:" ? "wss:" : "ws:";
       return `${wsProtocol}//${host}/api/songs/${songId}/live?token=${encodeURIComponent(token)}`;

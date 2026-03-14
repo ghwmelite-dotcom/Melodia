@@ -1,3 +1,6 @@
+// API base URL — empty string for same-origin (dev proxy), or full URL for production
+const API_BASE = import.meta.env.VITE_API_URL ?? "";
+
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
 
 interface RequestOptions {
@@ -48,7 +51,7 @@ class ApiClient {
   ): Promise<T> {
     const { method = "GET", body, headers: extraHeaders = {}, signal } = options;
 
-    const response = await fetch(path, {
+    const response = await fetch(`${API_BASE}${path}`, {
       method,
       credentials: "include",
       headers: this.buildHeaders(extraHeaders),
@@ -115,7 +118,7 @@ class ApiClient {
       headers["Authorization"] = `Bearer ${this.accessToken}`;
     }
 
-    const response = await fetch(path, {
+    const response = await fetch(`${API_BASE}${path}`, {
       method: "GET",
       credentials: "include",
       headers,
