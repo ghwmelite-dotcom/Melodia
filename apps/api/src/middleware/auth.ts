@@ -24,3 +24,21 @@ export function authGuard() {
     }
   };
 }
+
+export function optionalAuthGuard() {
+  return async (
+    c: Context<{ Bindings: Env; Variables: Variables }>,
+    next: Next
+  ) => {
+    const authHeader = c.req.header("Authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+      try {
+        const payload = await verifyJwt(authHeader.slice(7), c.env.JWT_SECRET);
+        c.set("userId", payload.sub);
+      } catch {
+        // Invalid token — continue as unauthenticated
+      }
+    }
+    await next();
+  };
+}
