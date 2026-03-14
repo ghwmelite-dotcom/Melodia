@@ -304,6 +304,181 @@ export const songQueries = {
 
   delete: (db: D1Database, id: string) =>
     db.prepare("DELETE FROM songs WHERE id = ?").bind(id).run(),
+
+  findByIdPublic: (db: D1Database, id: string) =>
+    db.prepare("SELECT * FROM songs WHERE id = ?").bind(id).first(),
+
+  update: (
+    db: D1Database,
+    id: string,
+    fields: { is_public?: boolean; title?: string }
+  ) => {
+    const sets: string[] = ["updated_at = datetime('now')"];
+    const values: (string | number | boolean | null)[] = [];
+    if (fields.is_public !== undefined) {
+      sets.push("is_public = ?");
+      values.push(fields.is_public ? 1 : 0);
+    }
+    if (fields.title !== undefined) {
+      sets.push("title = ?");
+      values.push(fields.title);
+    }
+    values.push(id);
+    return db
+      .prepare(`UPDATE songs SET ${sets.join(", ")} WHERE id = ?`)
+      .bind(...values)
+      .run();
+  },
+
+  incrementPlayCount: (db: D1Database, id: string) =>
+    db
+      .prepare(
+        "UPDATE songs SET play_count = play_count + 1, updated_at = datetime('now') WHERE id = ?"
+      )
+      .bind(id)
+      .run(),
+};
+
+export const exploreQueries = {
+  newSongs: (
+    db: D1Database,
+    opts: { limit: number; cursor?: string; genre?: string }
+  ) => {
+    const limit = Math.min(opts.limit ?? 20, 50);
+    let sql = `SELECT songs.*, users.username AS creator_username
+               FROM songs
+               JOIN users ON songs.user_id = users.id
+               WHERE songs.is_public = 1`;
+    const params: (string | number)[] = [];
+
+    if (opts.genre) {
+      sql += " AND songs.genre = ?";
+      params.push(opts.genre);
+    }
+    if (opts.cursor) {
+      sql += " AND songs.id < ?";
+      params.push(opts.cursor);
+    }
+    sql += " ORDER BY songs.id DESC LIMIT ?";
+    params.push(limit + 1);
+
+    return db.prepare(sql).bind(...params).all();
+  },
+
+  popularSongs: (
+    db: D1Database,
+    opts: { limit: number; offset: number; genre?: string }
+  ) => {
+    const limit = Math.min(opts.limit ?? 20, 50);
+    let sql = `SELECT songs.*, users.username AS creator_username
+               FROM songs
+               JOIN users ON songs.user_id = users.id
+               WHERE songs.is_public = 1`;
+    const params: (string | number)[] = [];
+
+    if (opts.genre) {
+      sql += " AND songs.genre = ?";
+      params.push(opts.genre);
+    }
+    sql += " ORDER BY songs.play_count DESC, songs.id DESC LIMIT ? OFFSET ?";
+    params.push(limit, opts.offset ?? 0);
+
+    return db.prepare(sql).bind(...params).all();
+  },
+};
+
+export const likeQueries = {
+  like: (db: D1Database, userId: string, songId: string) =>
+    db.batch([
+      db
+        .prepare(
+          "INSERT OR IGNORE INTO song_likes (user_id, song_id) VALUES (?, ?)"
+        )
+        .bind(userId, songId),
+      db
+        .prepare(
+          "UPDATE songs SET like_count = like_count + 1, updated_at = datetime('now') WHERE id = ?"
+        )
+        .bind(songId),
+    ]),
+
+  unlike: (db: D1Database, userId: string, songId: string) =>
+    db
+      .prepare("DELETE FROM song_likes WHERE user_id = ? AND song_id = ?")
+      .bind(userId, songId)
+      .run(),
+
+  decrementLikeCount: (db: D1Database, songId: string) =>
+    db
+      .prepare(
+        "UPDATE songs SET like_count = MAX(0, like_count - 1), updated_at = datetime('now') WHERE id = ?"
+      )
+      .bind(songId)
+      .run(),
+
+  isLiked: (db: D1Database, userId: string, songId: string) =>
+    db
+      .prepare("SELECT 1 FROM song_likes WHERE user_id = ? AND song_id = ?")
+      .bind(userId, songId)
+      .first(),
+
+  likedSongs: (
+    db: D1Database,
+    userId: string,
+    opts: { limit: number; offset: number }
+  ) => {
+    const limit = Math.min(opts.limit ?? 20, 50);
+    return db
+      .prepare(
+        `SELECT songs.*, users.username AS creator_username
+         FROM song_likes
+         JOIN songs ON song_likes.song_id = songs.id
+         JOIN users ON songs.user_id = users.id
+         WHERE song_likes.user_id = ?
+         ORDER BY song_likes.created_at DESC
+         LIMIT ? OFFSET ?`
+      )
+      .bind(userId, limit, opts.offset ?? 0)
+      .all();
+  },
+};
+
+export const profileQueries = {
+  findByUsername: (db: D1Database, username: string) =>
+    db
+      .prepare(
+        "SELECT id, username, display_name, avatar_url, created_at FROM users WHERE username = ?"
+      )
+      .bind(username)
+      .first(),
+
+  countPublicSongs: (db: D1Database, userId: string) =>
+    db
+      .prepare(
+        "SELECT COUNT(*) AS count FROM songs WHERE user_id = ? AND is_public = 1"
+      )
+      .bind(userId)
+      .first<{ count: number }>(),
+
+  publicSongs: (
+    db: D1Database,
+    userId: string,
+    opts: { limit: number; cursor?: string }
+  ) => {
+    const limit = Math.min(opts.limit ?? 20, 50);
+    let sql =
+      "SELECT * FROM songs WHERE user_id = ? AND is_public = 1";
+    const params: (string | number)[] = [userId];
+
+    if (opts.cursor) {
+      sql += " AND id < ?";
+      params.push(opts.cursor);
+    }
+    sql += " ORDER BY id DESC LIMIT ?";
+    params.push(limit + 1);
+
+    return db.prepare(sql).bind(...params).all();
+  },
 };
 
 export const creditQueries = {
