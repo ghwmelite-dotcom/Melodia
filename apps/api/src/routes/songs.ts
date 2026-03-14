@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { ulid } from "ulidx";
 import * as v from "valibot";
-import { GenerateSongSchema, UpdateSongSchema } from "@melodia/shared";
+import { GenerateSongSchema, UpdateSongSchema, PLAN_CREDITS } from "@melodia/shared";
 import type { Env, Variables } from "../types.js";
 import { AppError } from "../middleware/error-handler.js";
 import { authGuard, optionalAuthGuard } from "../middleware/auth.js";
@@ -9,6 +9,7 @@ import {
   songQueries,
   exploreQueries,
   likeQueries,
+  billingQueries,
 } from "../db/queries.js";
 
 type HonoContext = { Bindings: Env; Variables: Variables };
@@ -84,6 +85,64 @@ songs.get("/liked", authGuard(), async (c) => {
 });
 
 // ----------------------------------------------------------------------------
+// Helper: lazy credit reset — checks plan expiry and daily reset window
+// ----------------------------------------------------------------------------
+async function ensureCreditsReset(
+  db: D1Database,
+  userId: string
+): Promise<void> {
+  const user = (await db
+    .prepare(
+      "SELECT plan, credits_remaining, credits_reset_at, plan_expires_at FROM users WHERE id = ?"
+    )
+    .bind(userId)
+    .first()) as {
+    plan: string;
+    credits_remaining: number;
+    credits_reset_at: string | null;
+    plan_expires_at: string | null;
+  } | null;
+
+  if (!user) return;
+
+  const now = new Date();
+
+  // 1. Check plan expiry — downgrade to free if subscription has lapsed
+  if (user.plan_expires_at) {
+    const expiry = new Date(user.plan_expires_at);
+    if (now >= expiry) {
+      await billingQueries.downgradePlan(db, userId);
+      return; // downgradePlan already sets credits to 5
+    }
+  }
+
+  // 2. Daily credit reset — reset if credits_reset_at is in the past
+  if (user.credits_reset_at) {
+    const resetAt = new Date(user.credits_reset_at);
+    if (now >= resetAt) {
+      const maxCredits = PLAN_CREDITS[user.plan] ?? 5;
+      // Unlimited plans (-1) don't need a daily reset
+      if (maxCredits !== -1) {
+        const nextMidnight = new Date();
+        nextMidnight.setUTCHours(24, 0, 0, 0);
+        const newResetAt = nextMidnight.toISOString().replace("T", " ").slice(0, 19);
+
+        await billingQueries.resetCredits(db, userId, maxCredits, newResetAt);
+
+        // Log daily_reset credit transaction
+        const txId = ulid();
+        await db
+          .prepare(
+            "INSERT INTO credit_transactions (id, user_id, amount, reason) VALUES (?, ?, ?, 'daily_reset')"
+          )
+          .bind(txId, userId, maxCredits)
+          .run();
+      }
+    }
+  }
+}
+
+// ----------------------------------------------------------------------------
 // POST /generate  (protected)
 // ----------------------------------------------------------------------------
 songs.post("/generate", authGuard(), async (c) => {
@@ -105,36 +164,75 @@ songs.post("/generate", authGuard(), async (c) => {
   const songId = ulid();
   const txId = ulid();
 
-  // Atomic credit deduction — deduct first, then create song + credit transaction together.
-  const deductResult = await c.env.DB.prepare(
-    "UPDATE users SET credits_remaining = credits_remaining - 1, updated_at = datetime('now') WHERE id = ? AND credits_remaining > 0"
+  // Lazy credit reset — handles plan expiry downgrade + daily midnight reset
+  await ensureCreditsReset(c.env.DB, userId);
+
+  // Re-fetch user after potential reset to get current plan and credits
+  const currentUser = (await c.env.DB.prepare(
+    "SELECT plan, credits_remaining FROM users WHERE id = ?"
   )
     .bind(userId)
-    .run();
+    .first()) as { plan: string; credits_remaining: number } | null;
 
-  if (deductResult.meta.changes === 0) {
-    throw new AppError("FORBIDDEN", "Insufficient credits", 403);
+  if (!currentUser) {
+    throw new AppError("NOT_FOUND", "User not found", 404);
   }
 
-  // Create song record + credit transaction in batch
-  await c.env.DB.batch([
-    c.env.DB.prepare(
-      `INSERT INTO songs (id, user_id, title, user_prompt, genre, mood, vocal_language, duration_seconds, generation_started_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
-    ).bind(
-      songId,
-      userId,
-      prompt.slice(0, 100),
-      prompt,
-      genre ?? null,
-      mood ?? null,
-      language ?? null,
-      duration ?? 180
-    ),
-    c.env.DB.prepare(
-      "INSERT INTO credit_transactions (id, user_id, amount, reason, song_id) VALUES (?, ?, -1, 'song_generation', ?)"
-    ).bind(txId, userId, songId),
-  ]);
+  const planMax = PLAN_CREDITS[currentUser.plan] ?? 5;
+  const isUnlimited = planMax === -1;
+
+  if (isUnlimited) {
+    // Unlimited plan — skip credit deduction, create song + log zero-amount transaction
+    await c.env.DB.batch([
+      c.env.DB.prepare(
+        `INSERT INTO songs (id, user_id, title, user_prompt, genre, mood, vocal_language, duration_seconds, generation_started_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+      ).bind(
+        songId,
+        userId,
+        prompt.slice(0, 100),
+        prompt,
+        genre ?? null,
+        mood ?? null,
+        language ?? null,
+        duration ?? 180
+      ),
+      c.env.DB.prepare(
+        "INSERT INTO credit_transactions (id, user_id, amount, reason, song_id) VALUES (?, ?, 0, 'song_generation', ?)"
+      ).bind(txId, userId, songId),
+    ]);
+  } else {
+    // Finite credits — atomic deduction first, then create song + transaction
+    const deductResult = await c.env.DB.prepare(
+      "UPDATE users SET credits_remaining = credits_remaining - 1, updated_at = datetime('now') WHERE id = ? AND credits_remaining > 0"
+    )
+      .bind(userId)
+      .run();
+
+    if (deductResult.meta.changes === 0) {
+      throw new AppError("FORBIDDEN", "Insufficient credits", 403);
+    }
+
+    // Create song record + credit transaction in batch
+    await c.env.DB.batch([
+      c.env.DB.prepare(
+        `INSERT INTO songs (id, user_id, title, user_prompt, genre, mood, vocal_language, duration_seconds, generation_started_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+      ).bind(
+        songId,
+        userId,
+        prompt.slice(0, 100),
+        prompt,
+        genre ?? null,
+        mood ?? null,
+        language ?? null,
+        duration ?? 180
+      ),
+      c.env.DB.prepare(
+        "INSERT INTO credit_transactions (id, user_id, amount, reason, song_id) VALUES (?, ?, -1, 'song_generation', ?)"
+      ).bind(txId, userId, songId),
+    ]);
+  }
 
   // Trigger Durable Object pipeline
   const doId = c.env.SONG_SESSION.idFromName(songId);
