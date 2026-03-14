@@ -4,7 +4,8 @@ import { refreshTokenQueries } from "../db/queries.js";
 
 // --- PBKDF2 Password Hashing ---
 
-const PBKDF2_ITERATIONS = 600_000;
+// Cloudflare Workers limits PBKDF2 to 100,000 iterations max
+const PBKDF2_ITERATIONS = 100_000;
 const SALT_LENGTH = 16;
 const KEY_LENGTH = 32;
 

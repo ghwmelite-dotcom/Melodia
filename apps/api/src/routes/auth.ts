@@ -88,51 +88,58 @@ async function issueTokenResponse(
 
 // POST /register
 auth.post("/register", async (c) => {
-  const body = await c.req.json().catch(() => {
-    throw new AppError("VALIDATION_ERROR", "Invalid JSON body", 400);
-  });
+  try {
+    const body = await c.req.json().catch(() => {
+      throw new AppError("VALIDATION_ERROR", "Invalid JSON body", 400);
+    });
 
-  const result = v.safeParse(RegisterSchema, body);
-  if (!result.success) {
-    throw new AppError(
-      "VALIDATION_ERROR",
-      result.issues.map((i) => i.message).join(", "),
-      400
-    );
+    const result = v.safeParse(RegisterSchema, body);
+    if (!result.success) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        result.issues.map((i) => i.message).join(", "),
+        400
+      );
+    }
+
+    const { email, password, username } = result.output;
+
+    const [existingEmail, existingUsername] = await Promise.all([
+      userQueries.findByEmail(c.env.DB, email),
+      userQueries.findByUsername(c.env.DB, username),
+    ]);
+
+    if (existingEmail) {
+      throw new AppError("VALIDATION_ERROR", "Email is already in use.", 400);
+    }
+    if (existingUsername) {
+      throw new AppError("VALIDATION_ERROR", "Username is already taken.", 400);
+    }
+
+    const passwordHash = await hashPassword(password);
+    const id = ulid();
+
+    await userQueries.create(c.env.DB, {
+      id,
+      email,
+      username,
+      password_hash: passwordHash,
+      primary_auth_method: "email",
+      is_verified: 0,
+    });
+
+    const user = await userQueries.findById(c.env.DB, id);
+    if (!user) {
+      throw new AppError("INTERNAL_ERROR", "Failed to create user.", 500);
+    }
+
+    const tokenResponse = await issueTokenResponse(c, user as Record<string, unknown>);
+    return c.json(tokenResponse, 201);
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    console.error("[register] Unhandled error:", err);
+    throw new AppError("INTERNAL_ERROR", String(err), 500);
   }
-
-  const { email, password, username } = result.output;
-
-  const [existingEmail, existingUsername] = await Promise.all([
-    userQueries.findByEmail(c.env.DB, email),
-    userQueries.findByUsername(c.env.DB, username),
-  ]);
-
-  if (existingEmail) {
-    throw new AppError("VALIDATION_ERROR", "Email is already in use.", 400);
-  }
-  if (existingUsername) {
-    throw new AppError("VALIDATION_ERROR", "Username is already taken.", 400);
-  }
-
-  const passwordHash = await hashPassword(password);
-  const id = ulid();
-
-  await userQueries.create(c.env.DB, {
-    id,
-    email,
-    username,
-    password_hash: passwordHash,
-    primary_auth_method: "email",
-    is_verified: 0,
-  });
-
-  const user = await userQueries.findById(c.env.DB, id);
-  if (!user) {
-    throw new AppError("INTERNAL_ERROR", "Failed to create user.", 500);
-  }
-
-  return c.json(await issueTokenResponse(c, user as Record<string, unknown>), 201);
 });
 
 // POST /login — rate limit by email (10/hour), limit checked inline before password verify
