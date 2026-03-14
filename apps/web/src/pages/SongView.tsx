@@ -33,13 +33,13 @@ function formatDuration(seconds: number): string {
 // ─── Genre gradient colours (for artwork placeholder) ──────────────────────────
 
 const GENRE_GRADIENTS: Record<string, [string, string]> = {
-  afrobeats: ["rgba(240,165,0,0.3)", "rgba(194,65,12,0.3)"],
-  "afro-fusion": ["rgba(240,165,0,0.3)", "rgba(202,138,4,0.3)"],
-  "afro-soul": ["rgba(147,51,234,0.3)", "rgba(219,39,119,0.3)"],
-  highlife: ["rgba(22,163,74,0.3)", "rgba(13,148,136,0.3)"],
-  amapiano: ["rgba(13,148,136,0.3)", "rgba(37,99,235,0.3)"],
-  "hip-hop": ["rgba(75,85,99,0.5)", "rgba(17,24,39,0.5)"],
-  pop: ["rgba(219,39,119,0.3)", "rgba(147,51,234,0.3)"],
+  afrobeats: ["rgba(240,165,0,0.4)", "rgba(194,65,12,0.4)"],
+  "afro-fusion": ["rgba(240,165,0,0.4)", "rgba(202,138,4,0.4)"],
+  "afro-soul": ["rgba(147,51,234,0.4)", "rgba(219,39,119,0.4)"],
+  highlife: ["rgba(22,163,74,0.4)", "rgba(13,148,136,0.4)"],
+  amapiano: ["rgba(13,148,136,0.4)", "rgba(37,99,235,0.4)"],
+  "hip-hop": ["rgba(75,85,99,0.6)", "rgba(17,24,39,0.6)"],
+  pop: ["rgba(219,39,119,0.4)", "rgba(147,51,234,0.4)"],
 };
 
 function artworkGradient(genre: string | null): string {
@@ -54,11 +54,25 @@ function artworkGradient(genre: string | null): string {
 
 function Spinner() {
   return (
-    <div className="flex items-center justify-center min-h-[40vh]">
-      <div
-        className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
-        style={{ borderColor: "var(--color-amber)", borderTopColor: "transparent" }}
-      />
+    <div className="flex flex-col items-center justify-center min-h-[40vh] gap-4">
+      <div className="relative w-12 h-12">
+        <div
+          className="absolute inset-0 rounded-full"
+          style={{
+            border: "2px solid rgba(240,165,0,0.15)",
+          }}
+        />
+        <div
+          className="absolute inset-0 rounded-full border-2 border-t-transparent animate-spin"
+          style={{ borderColor: "var(--color-amber)", borderTopColor: "transparent" }}
+        />
+        <div className="absolute inset-0 flex items-center justify-center text-sm">
+          🎵
+        </div>
+      </div>
+      <p className="text-sm text-gray-500" style={{ fontFamily: "var(--font-display)" }}>
+        Loading…
+      </p>
     </div>
   );
 }
@@ -69,20 +83,102 @@ function VisibilityBadge({ isPublic }: { isPublic: boolean }) {
   if (isPublic) {
     return (
       <span
-        className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
-        style={{ backgroundColor: "rgba(0,210,255,0.15)", color: "var(--color-teal)" }}
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
+        style={{
+          background: "rgba(0,210,255,0.1)",
+          border: "1px solid rgba(0,210,255,0.2)",
+          color: "var(--color-teal)",
+          fontFamily: "var(--font-display)",
+        }}
       >
+        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
         Public
       </span>
     );
   }
   return (
     <span
-      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
-      style={{ backgroundColor: "var(--color-surface-3)", color: "#9ca3af" }}
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
+      style={{
+        background: "rgba(255,255,255,0.05)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        color: "#6b7280",
+        fontFamily: "var(--font-display)",
+      }}
     >
+      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" strokeLinecap="round" strokeLinejoin="round" />
+        <line x1="1" y1="1" x2="23" y2="23" strokeLinecap="round" />
+      </svg>
       Private
     </span>
+  );
+}
+
+// ─── Action button helper ──────────────────────────────────────────────────────
+
+interface ActionBtnProps {
+  onClick: () => void;
+  disabled?: boolean;
+  children: React.ReactNode;
+  variant?: "default" | "teal" | "danger" | "danger-confirm";
+  title?: string;
+}
+
+function ActionBtn({ onClick, disabled, children, variant = "default", title }: ActionBtnProps) {
+  const styles: Record<string, { background: string; border: string; color: string }> = {
+    default: {
+      background: "rgba(255,255,255,0.04)",
+      border: "1px solid rgba(255,255,255,0.08)",
+      color: "#9ca3af",
+    },
+    teal: {
+      background: "rgba(0,210,255,0.08)",
+      border: "1px solid rgba(0,210,255,0.2)",
+      color: "var(--color-teal)",
+    },
+    danger: {
+      background: "rgba(231,76,60,0.08)",
+      border: "1px solid rgba(231,76,60,0.2)",
+      color: "var(--color-coral)",
+    },
+    "danger-confirm": {
+      background: "var(--color-coral)",
+      border: "1px solid var(--color-coral)",
+      color: "white",
+    },
+  };
+
+  const s = styles[variant];
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+      style={{
+        background: s.background,
+        border: s.border,
+        color: s.color,
+        fontFamily: "var(--font-display)",
+      }}
+      onMouseEnter={(e) => {
+        if (!disabled) {
+          (e.currentTarget as HTMLElement).style.filter = "brightness(1.15)";
+          (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)";
+        }
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLElement).style.filter = "";
+        (e.currentTarget as HTMLElement).style.transform = "";
+      }}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -95,24 +191,19 @@ export default function SongView() {
   const songs = useSongs();
 
   const [song, setSong] = useState<SongDetail | null>(null);
-  const [loadingState, setLoadingState] = useState<"loading" | "loaded" | "error">(
-    "loading"
-  );
+  const [loadingState, setLoadingState] = useState<"loading" | "loaded" | "error">("loading");
   const [deleteConfirming, setDeleteConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [publishToggling, setPublishToggling] = useState(false);
-  // Variation & regeneration state
   const [playingVariation, setPlayingVariation] = useState(0);
   const [isRegenerateOpen, setIsRegenerateOpen] = useState(false);
 
-  // Fetch song details
   const fetchSong = useCallback(async () => {
     if (!id) return;
     try {
       const data = await songs.getSong(id);
       setSong(data);
       setLoadingState("loaded");
-      // Reset playing variation to the song's current primary index
       setPlayingVariation(data.variation_index ?? 0);
     } catch {
       setLoadingState("error");
@@ -124,13 +215,11 @@ export default function SongView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  // Called when GenerationProgress signals completion
   const handleGenerationComplete = useCallback(async () => {
     await fetchSong();
     await refresh();
   }, [fetchSong, refresh]);
 
-  // Delete song
   const handleDelete = useCallback(async () => {
     if (!id) return;
     setDeleting(true);
@@ -143,7 +232,6 @@ export default function SongView() {
     }
   }, [id, songs, navigate]);
 
-  // Set a variation as primary (select-variation API + refetch)
   const handleSetPrimary = useCallback(
     async (variationIndex: number) => {
       if (!id) return;
@@ -151,19 +239,17 @@ export default function SongView() {
         await songs.selectVariation(id, variationIndex);
         await fetchSong();
       } catch {
-        // Silently fail — variation is still playable, just not persisted
+        // Silently fail — variation still playable
       }
     },
     [id, songs, fetchSong]
   );
 
-  // Called when RegenerateModal submits — refetch song (will be "pending") and refresh credits
   const handleRegenerated = useCallback(async () => {
     await fetchSong();
     await refresh();
   }, [fetchSong, refresh]);
 
-  // Toggle publish state
   const handlePublishToggle = useCallback(async () => {
     if (!song || publishToggling) return;
     setPublishToggling(true);
@@ -171,7 +257,7 @@ export default function SongView() {
       const updated = await songs.updateSong(song.id, { is_public: !song.is_public });
       setSong(updated);
     } catch {
-      // Silently fail — keep current state
+      // Silently fail
     } finally {
       setPublishToggling(false);
     }
@@ -187,16 +273,29 @@ export default function SongView() {
 
   if (loadingState === "error" || !song) {
     return (
-      <div className="text-center py-16 space-y-4">
-        <p className="text-xl font-semibold text-white">Song not found</p>
-        <p className="text-gray-400 text-sm">
-          This song doesn&apos;t exist or you don&apos;t have access to it.
-        </p>
+      <div className="text-center py-20 space-y-5">
+        <div className="text-5xl opacity-30">🎵</div>
+        <div>
+          <p className="text-xl font-bold text-white" style={{ fontFamily: "var(--font-display)" }}>
+            Song not found
+          </p>
+          <p className="text-gray-500 text-sm mt-1">
+            This song doesn&apos;t exist or you don&apos;t have access to it.
+          </p>
+        </div>
         <Link
           to="/library"
-          className="inline-block px-4 py-2 rounded-xl text-sm font-medium"
-          style={{ backgroundColor: "var(--color-surface-2)", color: "var(--color-amber)" }}
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-150"
+          style={{
+            background: "rgba(240,165,0,0.1)",
+            border: "1px solid rgba(240,165,0,0.2)",
+            color: "var(--color-amber)",
+            fontFamily: "var(--font-display)",
+          }}
         >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
           Back to Library
         </Link>
       </div>
@@ -211,38 +310,45 @@ export default function SongView() {
         <div>
           <Link
             to="/library"
-            className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-white transition-colors mb-4"
+            className="inline-flex items-center gap-1.5 text-sm transition-colors mb-5"
+            style={{ color: "rgba(156,163,175,0.7)" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "#fff"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(156,163,175,0.7)"; }}
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             Library
           </Link>
-          <h1 className="text-2xl font-bold text-white">Generation Failed</h1>
+          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: "var(--font-display)" }}>
+            Generation Failed
+          </h1>
         </div>
 
         <div
-          className="rounded-2xl border p-6 space-y-4"
+          className="rounded-2xl p-6 space-y-4"
           style={{
-            backgroundColor: "rgba(255,107,107,0.05)",
-            borderColor: "rgba(255,107,107,0.2)",
+            background: "linear-gradient(180deg, rgba(231,76,60,0.08) 0%, rgba(231,76,60,0.03) 100%)",
+            border: "1px solid rgba(231,76,60,0.2)",
           }}
         >
-          {/* Original prompt */}
           <div>
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">
+            <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "rgba(156,163,175,0.5)" }}>
               Your prompt
             </p>
-            <p className="text-gray-200 text-sm leading-relaxed">
+            <p
+              className="text-gray-200 text-sm leading-relaxed italic"
+              style={{ fontFamily: "var(--font-body)" }}
+            >
               &ldquo;{song.user_prompt}&rdquo;
             </p>
           </div>
 
-          {/* Credits refunded notice */}
           <div
-            className="flex items-center gap-2 rounded-xl px-4 py-3 text-sm"
+            className="flex items-center gap-2.5 rounded-xl px-4 py-3 text-sm"
             style={{
-              backgroundColor: "rgba(13,148,136,0.1)",
+              background: "rgba(13,148,136,0.08)",
+              border: "1px solid rgba(13,148,136,0.2)",
               color: "var(--color-teal)",
             }}
           >
@@ -253,25 +359,30 @@ export default function SongView() {
           </div>
         </div>
 
-        {/* Actions */}
         <div className="flex gap-3">
           <button
-            onClick={() =>
-              void navigate(
-                `/studio?prompt=${encodeURIComponent(song.user_prompt)}`
-              )
-            }
-            className="flex-1 flex items-center justify-center gap-2 py-3 px-6 rounded-xl font-semibold transition-colors"
-            style={{ backgroundColor: "var(--color-amber)", color: "var(--color-charcoal)" }}
+            onClick={() => void navigate(`/studio?prompt=${encodeURIComponent(song.user_prompt)}`)}
+            className="flex-1 flex items-center justify-center gap-2 py-3 px-6 rounded-xl font-bold transition-all duration-200"
+            style={{
+              background: "linear-gradient(135deg, var(--color-amber) 0%, #D4920A 100%)",
+              color: "var(--color-charcoal)",
+              fontFamily: "var(--font-display)",
+              boxShadow: "0 4px 20px rgba(240,165,0,0.3)",
+            }}
           >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+            </svg>
             Try Again
           </button>
           <Link
             to="/library"
-            className="flex items-center justify-center px-6 py-3 rounded-xl text-sm font-medium transition-colors"
+            className="flex items-center justify-center px-6 py-3 rounded-xl text-sm font-semibold transition-all duration-150"
             style={{
-              backgroundColor: "var(--color-surface-2)",
-              color: "var(--color-gray-400, #9ca3af)",
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              color: "#9ca3af",
+              fontFamily: "var(--font-display)",
             }}
           >
             Back to Library
@@ -289,18 +400,24 @@ export default function SongView() {
         <div>
           <Link
             to="/library"
-            className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-white transition-colors mb-4"
+            className="inline-flex items-center gap-1.5 text-sm transition-colors mb-5"
+            style={{ color: "rgba(156,163,175,0.7)" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "#fff"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(156,163,175,0.7)"; }}
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             Library
           </Link>
-          <h1 className="text-2xl font-bold text-white">
+          <h1
+            className="text-2xl font-bold text-white"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
             {song.title || "Creating your song…"}
           </h1>
           {song.user_prompt && (
-            <p className="mt-1 text-gray-400 text-sm italic">
+            <p className="mt-1.5 text-sm italic" style={{ color: "rgba(156,163,175,0.7)" }}>
               &ldquo;{song.user_prompt}&rdquo;
             </p>
           )}
@@ -318,292 +435,344 @@ export default function SongView() {
 
   const isOwner = user?.id === song.user_id;
   const isLikedByMe = (song as SongDetail & { is_liked?: boolean }).is_liked ?? false;
-
-  // Parse waveform data from waveform_url: for MVP we pass null and let the
-  // player show the flat fallback — the actual waveform JSON fetch would
-  // require a new API endpoint.
   const waveformData: number[] | null = null;
-
   const variationCount = song.variation_count ?? 1;
   const primaryIndex = song.variation_index ?? 0;
 
   return (
     <>
-    <div className="space-y-6 max-w-4xl mx-auto">
-      {/* Back link */}
-      <Link
-        to="/library"
-        className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-white transition-colors"
-      >
-        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-          <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        Library
-      </Link>
+      <div className="space-y-6 max-w-4xl mx-auto">
+        {/* Back link */}
+        <Link
+          to="/library"
+          className="inline-flex items-center gap-1.5 text-sm transition-colors"
+          style={{ color: "rgba(156,163,175,0.7)" }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "#fff"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "rgba(156,163,175,0.7)"; }}
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Library
+        </Link>
 
-      {/* Top section: artwork + title info + actions */}
-      <div className="flex flex-col sm:flex-row gap-5">
-        {/* Artwork */}
-        <div className="shrink-0">
-          {song.artwork_url ? (
-            <img
-              src={song.artwork_url}
-              alt={`${song.title} artwork`}
-              className="w-full sm:w-48 sm:h-48 rounded-2xl object-cover shadow-lg"
-              style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}
-            />
-          ) : (
+        {/* Top section: artwork + title + actions */}
+        <div className="flex flex-col sm:flex-row gap-6">
+          {/* Artwork with ambient glow */}
+          <div className="shrink-0 relative">
+            {/* Ambient glow behind artwork */}
             <div
-              className="w-full sm:w-48 sm:h-48 rounded-2xl flex items-center justify-center"
-              style={{ background: artworkGradient(song.genre) }}
-            >
-              <svg
-                className="w-16 h-16 text-gray-500 opacity-50"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                aria-hidden="true"
-              >
-                <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
-              </svg>
-            </div>
-          )}
-        </div>
+              className="absolute inset-0 rounded-2xl pointer-events-none"
+              style={{
+                background: "radial-gradient(ellipse at center, rgba(240,165,0,0.25) 0%, transparent 70%)",
+                filter: "blur(16px)",
+                transform: "scale(1.1) translateY(6px)",
+                zIndex: 0,
+              }}
+              aria-hidden="true"
+            />
 
-        {/* Song info */}
-        <div className="flex-1 min-w-0 space-y-2">
-          {/* Title + visibility badge */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-3xl font-bold text-white truncate">{song.title}</h1>
-            {isOwner && <VisibilityBadge isPublic={song.is_public} />}
-          </div>
-
-          {/* Genre / sub-genre */}
-          <p className="text-gray-400 capitalize">
-            {[song.genre, song.sub_genre].filter(Boolean).join(" · ")}
-          </p>
-
-          {/* Key / BPM / duration */}
-          <div className="flex flex-wrap gap-2 text-sm text-gray-400">
-            {song.key_signature && (
-              <span
-                className="px-2 py-0.5 rounded-lg text-xs"
-                style={{ backgroundColor: "var(--color-surface-2)" }}
-              >
-                {song.key_signature}
-              </span>
-            )}
-            {song.bpm != null && (
-              <span
-                className="px-2 py-0.5 rounded-lg text-xs"
-                style={{ backgroundColor: "var(--color-surface-2)" }}
-              >
-                {song.bpm} BPM
-              </span>
-            )}
-            {song.duration_seconds > 0 && (
-              <span
-                className="px-2 py-0.5 rounded-lg text-xs"
-                style={{ backgroundColor: "var(--color-surface-2)" }}
-              >
-                {formatDuration(song.duration_seconds)}
-              </span>
-            )}
-          </div>
-
-          {/* Action row: publish toggle (owner) + regenerate + like button (non-owner, public) + delete (owner) */}
-          <div className="pt-2 flex flex-wrap items-center gap-3">
-            {/* Publish toggle — only for owner */}
-            {isOwner && (
-              <button
-                onClick={() => void handlePublishToggle()}
-                disabled={publishToggling}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer"
-                style={
-                  song.is_public
-                    ? { backgroundColor: "rgba(0,210,255,0.1)", color: "var(--color-teal)" }
-                    : { backgroundColor: "var(--color-surface-2)", color: "#9ca3af" }
-                }
-              >
-                {publishToggling ? (
-                  <span>Saving…</span>
-                ) : song.is_public ? (
-                  <>
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" strokeLinecap="round" strokeLinejoin="round" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                    Make Private
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" strokeLinecap="round" strokeLinejoin="round" />
-                      <line x1="1" y1="1" x2="23" y2="23" strokeLinecap="round" />
-                    </svg>
-                    Make Public
-                  </>
-                )}
-              </button>
-            )}
-
-            {/* Regenerate button — only for owner */}
-            {isOwner && (
-              <button
-                onClick={() => setIsRegenerateOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer"
+            {song.artwork_url ? (
+              <img
+                src={song.artwork_url}
+                alt={`${song.title} artwork`}
+                className="relative z-10 w-full sm:w-52 sm:h-52 rounded-2xl object-cover transition-transform duration-500"
                 style={{
-                  backgroundColor: "var(--color-surface-2)",
-                  color: "white",
+                  boxShadow: "0 12px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06)",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.transform =
+                    "rotate3d(0.3, -0.8, 0, 8deg) scale(1.02)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.transform = "rotate3d(0,0,0,0deg) scale(1)";
+                }}
+              />
+            ) : (
+              <div
+                className="relative z-10 w-full sm:w-52 sm:h-52 rounded-2xl flex items-center justify-center transition-transform duration-500"
+                style={{
+                  background: artworkGradient(song.genre),
+                  boxShadow: "0 12px 48px rgba(0,0,0,0.5)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.transform =
+                    "rotate3d(0.3, -0.8, 0, 8deg) scale(1.02)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.transform = "rotate3d(0,0,0,0deg) scale(1)";
                 }}
               >
                 <svg
-                  className="w-4 h-4"
+                  className="w-20 h-20 opacity-20"
                   viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2}
+                  fill="currentColor"
+                  style={{ color: "white" }}
+                  aria-hidden="true"
                 >
-                  <path
-                    d="M1 4v6h6M23 20v-6h-6"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
+                  <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
                 </svg>
-                Regenerate
-              </button>
+              </div>
+            )}
+          </div>
+
+          {/* Song info */}
+          <div className="flex-1 min-w-0 space-y-3">
+            {/* Title + visibility */}
+            <div className="flex items-start gap-2 flex-wrap">
+              <h1
+                className="text-3xl font-bold text-white leading-tight"
+                style={{ fontFamily: "var(--font-display)" }}
+              >
+                {song.title}
+              </h1>
+              {isOwner && <VisibilityBadge isPublic={song.is_public} />}
+            </div>
+
+            {/* Genre/subgenre */}
+            {(song.genre || song.sub_genre) && (
+              <p
+                className="text-sm capitalize"
+                style={{ color: "rgba(156,163,175,0.8)" }}
+              >
+                {[song.genre, song.sub_genre].filter(Boolean).join(" · ")}
+              </p>
             )}
 
-            {/* Like button — only for non-owners on public songs */}
-            {!isOwner && song.is_public && (
-              <LikeButton
-                songId={song.id}
-                initialLiked={isLikedByMe}
-                initialCount={song.like_count}
-              />
-            )}
-
-            {/* Delete button — only for owner */}
-            {isOwner && (
-              !deleteConfirming ? (
-                <button
-                  onClick={() => setDeleteConfirming(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors cursor-pointer"
+            {/* Key / BPM / Duration pills */}
+            <div className="flex flex-wrap gap-2">
+              {song.key_signature && (
+                <span
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold"
                   style={{
-                    backgroundColor: "rgba(255,107,107,0.1)",
-                    color: "var(--color-coral)",
+                    background: "rgba(240,165,0,0.1)",
+                    border: "1px solid rgba(240,165,0,0.2)",
+                    color: "var(--color-amber-light)",
+                    fontFamily: "var(--font-display)",
                   }}
                 >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                    <path d="M3 6h18M19 6l-1 14H6L5 6M10 11v6M14 11v6M9 6V4h6v2" strokeLinecap="round" strokeLinejoin="round" />
+                  🎹 {song.key_signature}
+                </span>
+              )}
+              {song.bpm != null && (
+                <span
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold"
+                  style={{
+                    background: "rgba(240,165,0,0.1)",
+                    border: "1px solid rgba(240,165,0,0.2)",
+                    color: "var(--color-amber-light)",
+                    fontFamily: "var(--font-display)",
+                  }}
+                >
+                  ⏱ {song.bpm} BPM
+                </span>
+              )}
+              {song.duration_seconds > 0 && (
+                <span
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold"
+                  style={{
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    color: "rgba(156,163,175,0.8)",
+                    fontFamily: "var(--font-display)",
+                  }}
+                >
+                  {formatDuration(song.duration_seconds)}
+                </span>
+              )}
+            </div>
+
+            {/* Action row */}
+            <div className="pt-1 flex flex-wrap items-center gap-2">
+              {/* Publish toggle */}
+              {isOwner && (
+                <ActionBtn
+                  onClick={() => void handlePublishToggle()}
+                  disabled={publishToggling}
+                  variant={song.is_public ? "teal" : "default"}
+                  title={song.is_public ? "Make private" : "Make public"}
+                >
+                  {publishToggling ? (
+                    <span>Saving…</span>
+                  ) : song.is_public ? (
+                    <>
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" strokeLinecap="round" strokeLinejoin="round" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                      Make Private
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" strokeLinecap="round" strokeLinejoin="round" />
+                        <line x1="1" y1="1" x2="23" y2="23" strokeLinecap="round" />
+                      </svg>
+                      Make Public
+                    </>
+                  )}
+                </ActionBtn>
+              )}
+
+              {/* Regenerate */}
+              {isOwner && (
+                <ActionBtn
+                  onClick={() => setIsRegenerateOpen(true)}
+                  title="Regenerate this song"
+                >
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path d="M1 4v6h6M23 20v-6h-6" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
-                  Delete
-                </button>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-400">Are you sure?</span>
-                  <button
-                    onClick={() => void handleDelete()}
-                    disabled={deleting}
-                    className="px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-50 transition-colors"
-                    style={{
-                      backgroundColor: "var(--color-coral)",
-                      color: "white",
-                    }}
+                  Regenerate
+                </ActionBtn>
+              )}
+
+              {/* Like button */}
+              {!isOwner && song.is_public && (
+                <LikeButton
+                  songId={song.id}
+                  initialLiked={isLikedByMe}
+                  initialCount={song.like_count}
+                />
+              )}
+
+              {/* Delete */}
+              {isOwner && (
+                !deleteConfirming ? (
+                  <ActionBtn
+                    onClick={() => setDeleteConfirming(true)}
+                    variant="danger"
+                    title="Delete song"
                   >
-                    {deleting ? "Deleting…" : "Delete"}
-                  </button>
-                  <button
-                    onClick={() => setDeleteConfirming(false)}
-                    className="px-3 py-1.5 rounded-lg text-sm text-gray-400 hover:text-white transition-colors"
-                    style={{ backgroundColor: "var(--color-surface-2)" }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )
-            )}
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path d="M3 6h18M19 6l-1 14H6L5 6M10 11v6M14 11v6M9 6V4h6v2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    Delete
+                  </ActionBtn>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs" style={{ color: "rgba(156,163,175,0.7)" }}>
+                      Are you sure?
+                    </span>
+                    <ActionBtn
+                      onClick={() => void handleDelete()}
+                      disabled={deleting}
+                      variant="danger-confirm"
+                    >
+                      {deleting ? "Deleting…" : "Delete"}
+                    </ActionBtn>
+                    <ActionBtn onClick={() => setDeleteConfirming(false)}>
+                      Cancel
+                    </ActionBtn>
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Variation Tabs */}
+        {variationCount > 1 && (
+          <div
+            className="rounded-2xl px-5 py-4"
+            style={{
+              background: "linear-gradient(180deg, var(--color-surface-2) 0%, var(--color-surface-1) 100%)",
+              border: "1px solid rgba(240,165,0,0.1)",
+            }}
+          >
+            <VariationTabs
+              variationCount={variationCount}
+              selectedIndex={playingVariation}
+              primaryIndex={primaryIndex}
+              onSelect={(i) => setPlayingVariation(i)}
+              onSetPrimary={(i) => void handleSetPrimary(i)}
+            />
+          </div>
+        )}
+
+        {/* Player card */}
+        <div
+          className="rounded-2xl overflow-hidden"
+          style={{
+            background: "linear-gradient(180deg, var(--color-surface-2) 0%, var(--color-surface-1) 100%)",
+            border: "1px solid rgba(240,165,0,0.12)",
+            boxShadow: "0 4px 32px rgba(0,0,0,0.3)",
+          }}
+        >
+          {/* Subtle top line */}
+          <div
+            style={{
+              height: "1px",
+              background: "linear-gradient(90deg, transparent, rgba(240,165,0,0.4), transparent)",
+            }}
+          />
+          <div className="p-5">
+            <WaveformPlayer
+              songId={song.id}
+              waveformData={waveformData}
+              variationIndex={playingVariation}
+              artworkUrl={song.artwork_url ?? undefined}
+            />
+          </div>
+        </div>
+
+        {/* Lyrics + Metadata */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {/* Lyrics panel */}
+          <div
+            className="rounded-2xl overflow-hidden"
+            style={{
+              background: "linear-gradient(180deg, var(--color-surface-2) 0%, var(--color-surface-1) 100%)",
+              border: "1px solid rgba(255,255,255,0.06)",
+            }}
+          >
+            <div className="px-5 pt-5 pb-3 flex items-center gap-2 border-b" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+              <span style={{ fontSize: "0.9rem" }}>♪</span>
+              <h2
+                className="text-xs font-bold uppercase tracking-widest"
+                style={{ color: "rgba(156,163,175,0.6)", fontFamily: "var(--font-display)" }}
+              >
+                Lyrics
+              </h2>
+            </div>
+            <div className="px-5 py-4">
+              <LyricsDisplay lyrics={song.lyrics} />
+            </div>
+          </div>
+
+          {/* Metadata panel */}
+          <div
+            className="rounded-2xl overflow-hidden"
+            style={{
+              background: "linear-gradient(180deg, var(--color-surface-2) 0%, var(--color-surface-1) 100%)",
+              border: "1px solid rgba(255,255,255,0.06)",
+            }}
+          >
+            <div className="px-5 pt-5 pb-3 flex items-center gap-2 border-b" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+              <span style={{ fontSize: "0.9rem" }}>⚙</span>
+              <h2
+                className="text-xs font-bold uppercase tracking-widest"
+                style={{ color: "rgba(156,163,175,0.6)", fontFamily: "var(--font-display)" }}
+              >
+                Details
+              </h2>
+            </div>
+            <div className="px-4 py-4">
+              <SongMeta song={song} />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Variation Tabs — only visible when variationCount > 1 */}
-      {variationCount > 1 && (
-        <div
-          className="rounded-2xl border px-5 py-4"
-          style={{
-            backgroundColor: "var(--color-surface-1)",
-            borderColor: "var(--color-surface-3)",
-          }}
-        >
-          <VariationTabs
-            variationCount={variationCount}
-            selectedIndex={playingVariation}
-            primaryIndex={primaryIndex}
-            onSelect={(i) => setPlayingVariation(i)}
-            onSetPrimary={(i) => void handleSetPrimary(i)}
-          />
-        </div>
-      )}
-
-      {/* Player */}
-      <div
-        className="rounded-2xl border p-5"
-        style={{
-          backgroundColor: "var(--color-surface-1)",
-          borderColor: "var(--color-surface-3)",
-        }}
-      >
-        <WaveformPlayer
-          songId={song.id}
-          waveformData={waveformData}
-          variationIndex={playingVariation}
-        />
-      </div>
-
-      {/* Lyrics + Metadata — two column on desktop */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Lyrics */}
-        <div
-          className="rounded-2xl border p-5"
-          style={{
-            backgroundColor: "var(--color-surface-1)",
-            borderColor: "var(--color-surface-3)",
-          }}
-        >
-          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">
-            Lyrics
-          </h2>
-          <LyricsDisplay lyrics={song.lyrics} />
-        </div>
-
-        {/* Metadata */}
-        <div
-          className="rounded-2xl border p-5"
-          style={{
-            backgroundColor: "var(--color-surface-1)",
-            borderColor: "var(--color-surface-3)",
-          }}
-        >
-          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">
-            Details
-          </h2>
-          <SongMeta song={song} />
-        </div>
-      </div>
-    </div>
-
-    {/* Regenerate Modal — portal-style, rendered outside main div */}
-    <RegenerateModal
-      songId={song.id}
-      isOpen={isRegenerateOpen}
-      onClose={() => setIsRegenerateOpen(false)}
-      onRegenerated={() => void handleRegenerated()}
-    />
+      {/* Regenerate Modal */}
+      <RegenerateModal
+        songId={song.id}
+        isOpen={isRegenerateOpen}
+        onClose={() => setIsRegenerateOpen(false)}
+        onRegenerated={() => void handleRegenerated()}
+      />
     </>
   );
 }
