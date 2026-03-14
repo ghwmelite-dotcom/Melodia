@@ -61,6 +61,16 @@ export const UpdateSongSchema = v.object({
 });
 export type UpdateSongInput = v.InferInput<typeof UpdateSongSchema>;
 
+export const RegenerateSongSchema = v.object({
+  keep: v.picklist(["none", "blueprint", "lyrics"]),
+});
+export type RegenerateSongInput = v.InferInput<typeof RegenerateSongSchema>;
+
+export const SelectVariationSchema = v.object({
+  variation_index: v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(7)),
+});
+export type SelectVariationInput = v.InferInput<typeof SelectVariationSchema>;
+
 export const SongDetailSchema = v.object({
   ...SongSchema.entries,
   lyrics: v.nullable(v.string()),

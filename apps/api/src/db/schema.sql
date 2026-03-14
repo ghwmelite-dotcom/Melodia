@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS songs (
   ace_step_steps INTEGER DEFAULT 8,
   variation_group_id TEXT,
   variation_index INTEGER DEFAULT 0,
+  variation_count INTEGER DEFAULT 1,
   is_selected_variation BOOLEAN DEFAULT FALSE,
   is_public BOOLEAN DEFAULT FALSE,
   play_count INTEGER DEFAULT 0,

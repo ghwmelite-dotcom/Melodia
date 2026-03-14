@@ -22,6 +22,13 @@ export const PLAN_FEATURES: Record<string, string[]> = {
   enterprise: ["Everything in Pro", "Dedicated GPU", "Custom model fine-tuning", "White-label", "SLA guarantees"],
 };
 
+export const PLAN_VARIATIONS: Record<string, number> = {
+  free: 1,
+  creator: 4,
+  pro: 8,
+  enterprise: 8,
+};
+
 // Song statuses
 export const SONG_STATUSES = [
   "pending",
