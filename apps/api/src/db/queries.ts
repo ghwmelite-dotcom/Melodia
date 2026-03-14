@@ -496,3 +496,97 @@ export const creditQueries = {
       .bind(userId, limit, offset)
       .all(),
 };
+
+export const billingQueries = {
+  updatePlan: (
+    db: D1Database,
+    userId: string,
+    fields: { plan: string; customerCode: string; subscriptionCode: string }
+  ) =>
+    db
+      .prepare(
+        `UPDATE users SET plan = ?, paystack_customer_code = ?, paystack_subscription_code = ?,
+         plan_expires_at = NULL, updated_at = datetime('now') WHERE id = ?`
+      )
+      .bind(fields.plan, fields.customerCode, fields.subscriptionCode, userId)
+      .run(),
+
+  resetCredits: (db: D1Database, userId: string, credits: number, resetAt: string) =>
+    db
+      .prepare(
+        "UPDATE users SET credits_remaining = ?, credits_reset_at = ?, updated_at = datetime('now') WHERE id = ?"
+      )
+      .bind(credits, resetAt, userId)
+      .run(),
+
+  downgradePlan: (db: D1Database, userId: string) =>
+    db
+      .prepare(
+        `UPDATE users SET plan = 'free', paystack_customer_code = NULL,
+         paystack_subscription_code = NULL, plan_expires_at = NULL,
+         credits_remaining = 5, updated_at = datetime('now') WHERE id = ?`
+      )
+      .bind(userId)
+      .run(),
+
+  setPlanExpiry: (db: D1Database, userId: string, expiresAt: string) =>
+    db
+      .prepare(
+        "UPDATE users SET plan_expires_at = ?, updated_at = datetime('now') WHERE id = ?"
+      )
+      .bind(expiresAt, userId)
+      .run(),
+
+  insertPayment: (
+    db: D1Database,
+    payment: {
+      id: string;
+      user_id: string;
+      paystack_reference: string;
+      amount: number;
+      currency: string;
+      status: string;
+      plan: string;
+      period_start?: string | null;
+      period_end?: string | null;
+    }
+  ) =>
+    db
+      .prepare(
+        `INSERT OR IGNORE INTO payments
+         (id, user_id, paystack_reference, amount, currency, status, plan, period_start, period_end)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        payment.id,
+        payment.user_id,
+        payment.paystack_reference,
+        payment.amount,
+        payment.currency,
+        payment.status,
+        payment.plan,
+        payment.period_start ?? null,
+        payment.period_end ?? null
+      )
+      .run(),
+
+  getPaymentHistory: (db: D1Database, userId: string, limit = 20) =>
+    db
+      .prepare(
+        "SELECT * FROM payments WHERE user_id = ? ORDER BY created_at DESC LIMIT ?"
+      )
+      .bind(userId, limit)
+      .all(),
+
+  findBySubscriptionCode: (db: D1Database, subscriptionCode: string) =>
+    db
+      .prepare("SELECT * FROM users WHERE paystack_subscription_code = ?")
+      .bind(subscriptionCode)
+      .first(),
+
+  findByCustomerCode: (db: D1Database, customerCode: string) =>
+    db
+      .prepare("SELECT * FROM users WHERE paystack_customer_code = ?")
+      .bind(customerCode)
+      .first(),
+};
