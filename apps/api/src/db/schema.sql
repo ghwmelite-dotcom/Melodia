@@ -140,3 +140,8 @@ CREATE INDEX IF NOT EXISTS idx_songs_public ON songs(is_public, play_count DESC)
 CREATE INDEX IF NOT EXISTS idx_songs_variation ON songs(variation_group_id);
 CREATE INDEX IF NOT EXISTS idx_playlists_user ON playlists(user_id);
 CREATE INDEX IF NOT EXISTS idx_credits_user ON credit_transactions(user_id);
+
+-- Sub-project 4 indexes
+CREATE INDEX IF NOT EXISTS idx_song_likes_user ON song_likes(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_songs_public_new ON songs(is_public, id DESC);
+CREATE INDEX IF NOT EXISTS idx_songs_public_genre ON songs(is_public, genre, play_count DESC);

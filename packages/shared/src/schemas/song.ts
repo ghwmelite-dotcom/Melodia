@@ -47,6 +47,20 @@ export const SongSchema = v.object({
 });
 export type Song = v.InferOutput<typeof SongSchema>;
 
+export const SongWithCreatorSchema = v.object({
+  ...SongSchema.entries,
+  creator_username: v.string(),
+  is_liked: v.optional(v.boolean()),
+  play_count: v.number(),
+});
+export type SongWithCreator = v.InferOutput<typeof SongWithCreatorSchema>;
+
+export const UpdateSongSchema = v.object({
+  is_public: v.optional(v.boolean()),
+  title: v.optional(v.pipe(v.string(), v.minLength(1), v.maxLength(200))),
+});
+export type UpdateSongInput = v.InferInput<typeof UpdateSongSchema>;
+
 export const SongDetailSchema = v.object({
   ...SongSchema.entries,
   lyrics: v.nullable(v.string()),

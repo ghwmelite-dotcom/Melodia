@@ -1,6 +1,15 @@
 import * as v from "valibot";
 import { PLANS, AUTH_METHODS } from "../constants.js";
 
+export const UserProfileSchema = v.object({
+  username: v.string(),
+  display_name: v.nullable(v.string()),
+  avatar_url: v.nullable(v.string()),
+  created_at: v.string(),
+  song_count: v.number(),
+});
+export type UserProfile = v.InferOutput<typeof UserProfileSchema>;
+
 export const UserSchema = v.object({
   id: v.string(),
   email: v.nullable(v.string()),
