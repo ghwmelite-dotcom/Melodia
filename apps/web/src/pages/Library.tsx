@@ -8,7 +8,7 @@ import type { Song } from "@melodia/shared";
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
 type ViewMode = "grid" | "list";
-type StatusFilter = "all" | "completed" | "failed";
+type StatusFilter = "all" | "completed" | "failed" | "liked";
 
 const LS_VIEW_KEY = "melodia-library-view";
 
@@ -51,6 +51,21 @@ function ListIcon({ active }: { active: boolean }) {
 // ─── Empty State ───────────────────────────────────────────────────────────────
 
 function EmptyState({ filter }: { filter: StatusFilter }) {
+  if (filter === "liked") {
+    return (
+      <div className="text-center py-16 space-y-3">
+        <p className="text-gray-400 text-sm">No liked songs yet.</p>
+        <Link
+          to="/explore"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors"
+          style={{ backgroundColor: "var(--color-surface-2)", color: "var(--color-amber)" }}
+        >
+          Explore Music
+        </Link>
+      </div>
+    );
+  }
+
   if (filter !== "all") {
     return (
       <div className="text-center py-16">
@@ -108,6 +123,8 @@ export default function Library() {
 
   const [items, setItems] = useState<Song[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [likedPage, setLikedPage] = useState(0);
+  const [likedHasMore, setLikedHasMore] = useState(false);
   const [loadingFirst, setLoadingFirst] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [totalFetched, setTotalFetched] = useState(0);
@@ -126,15 +143,24 @@ export default function Library() {
     setLoadingFirst(true);
     setItems([]);
     setNextCursor(null);
+    setLikedPage(0);
+    setLikedHasMore(false);
     setTotalFetched(0);
 
     try {
-      const opts =
-        filter !== "all" ? { status: filter } : undefined;
-      const res = await songs.listSongs(opts);
-      setItems(res.songs);
-      setNextCursor(res.next_cursor);
-      setTotalFetched(res.songs.length);
+      if (filter === "liked") {
+        const res = await songs.likedSongs({ page: 0 });
+        setItems(res.songs);
+        // likedSongs uses offset, simulate cursor via next_cursor
+        setLikedHasMore(res.next_cursor !== null);
+        setTotalFetched(res.songs.length);
+      } else {
+        const opts = filter !== "all" ? { status: filter } : undefined;
+        const res = await songs.listSongs(opts);
+        setItems(res.songs);
+        setNextCursor(res.next_cursor);
+        setTotalFetched(res.songs.length);
+      }
     } catch {
       // Silently fail — show empty state
     } finally {
@@ -149,22 +175,32 @@ export default function Library() {
 
   // Load next page
   const loadMore = useCallback(async () => {
-    if (!nextCursor || loadingMore || loadingFirst) return;
+    if (loadingMore || loadingFirst) return;
 
     setLoadingMore(true);
     try {
-      const opts: { status?: string; cursor: string } = { cursor: nextCursor };
-      if (filter !== "all") opts.status = filter;
-      const res = await songs.listSongs(opts);
-      setItems((prev) => [...prev, ...res.songs]);
-      setNextCursor(res.next_cursor);
-      setTotalFetched((n) => n + res.songs.length);
+      if (filter === "liked") {
+        const nextPage = likedPage + 1;
+        const res = await songs.likedSongs({ page: nextPage });
+        setItems((prev) => [...prev, ...res.songs]);
+        setLikedPage(nextPage);
+        setLikedHasMore(res.next_cursor !== null);
+        setTotalFetched((n) => n + res.songs.length);
+      } else {
+        if (!nextCursor) return;
+        const opts: { status?: string; cursor: string } = { cursor: nextCursor };
+        if (filter !== "all") opts.status = filter;
+        const res = await songs.listSongs(opts);
+        setItems((prev) => [...prev, ...res.songs]);
+        setNextCursor(res.next_cursor);
+        setTotalFetched((n) => n + res.songs.length);
+      }
     } catch {
       // Ignore — user can scroll again
     } finally {
       setLoadingMore(false);
     }
-  }, [nextCursor, loadingMore, loadingFirst, filter, songs]);
+  }, [nextCursor, likedPage, loadingMore, loadingFirst, filter, songs]);
 
   // IntersectionObserver for infinite scroll
   useEffect(() => {
@@ -172,9 +208,11 @@ export default function Library() {
       observerRef.current.disconnect();
     }
 
+    const hasMore = filter === "liked" ? likedHasMore : !!nextCursor;
+
     observerRef.current = new IntersectionObserver(
       (entries) => {
-        if (entries[0]?.isIntersecting && nextCursor && !loadingMore) {
+        if (entries[0]?.isIntersecting && hasMore && !loadingMore) {
           void loadMore();
         }
       },
@@ -188,7 +226,9 @@ export default function Library() {
     return () => {
       observerRef.current?.disconnect();
     };
-  }, [nextCursor, loadingMore, loadMore]);
+  }, [nextCursor, likedHasMore, filter, loadingMore, loadMore]);
+
+  const hasMore = filter === "liked" ? likedHasMore : !!nextCursor;
 
   return (
     <div className="space-y-6">
@@ -198,7 +238,7 @@ export default function Library() {
           <h1 className="text-2xl font-bold text-white">Your Songs</h1>
           {!loadingFirst && (
             <span className="text-gray-500 text-sm">
-              ({totalFetched}{nextCursor ? "+" : ""})
+              ({totalFetched}{hasMore ? "+" : ""})
             </span>
           )}
         </div>
@@ -219,6 +259,7 @@ export default function Library() {
             <option value="all">All</option>
             <option value="completed">Completed</option>
             <option value="failed">Failed</option>
+            <option value="liked">Liked</option>
           </select>
 
           {/* View toggle */}
@@ -298,7 +339,7 @@ export default function Library() {
       )}
 
       {/* Infinite scroll sentinel */}
-      {nextCursor && (
+      {hasMore && (
         <div ref={sentinelRef} className="flex items-center justify-center py-6">
           {loadingMore && (
             <div

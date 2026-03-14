@@ -20,6 +20,10 @@ const Studio = lazy(() => import("./pages/Studio"));
 const SongView = lazy(() => import("./pages/SongView"));
 const Library = lazy(() => import("./pages/Library"));
 
+// Public pages with layout — code-split
+const Explore = lazy(() => import("./pages/Explore"));
+const Profile = lazy(() => import("./pages/Profile"));
+
 function PageSpinner() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-charcoal">
@@ -32,13 +36,19 @@ export default function App() {
   return (
     <Suspense fallback={<PageSpinner />}>
       <Routes>
-        {/* Public routes */}
+        {/* Public routes (no layout) */}
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/verify-otp" element={<VerifyOtp />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+
+        {/* Public routes inside Layout (nav shows, login CTA if not authenticated) */}
+        <Route element={<Layout />}>
+          <Route path="/explore" element={<Explore />} />
+          <Route path="/profile/:username" element={<Profile />} />
+        </Route>
 
         {/* Protected routes */}
         <Route element={<AuthGuard />}>

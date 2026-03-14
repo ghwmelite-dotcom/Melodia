@@ -2,7 +2,7 @@ import { Link, NavLink, Outlet } from "react-router";
 import { useAuth } from "../hooks/useAuth";
 
 export default function Layout() {
-  const { user, logout } = useAuth();
+  const { user, isAuthenticated, logout } = useAuth();
 
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: "var(--color-charcoal)" }}>
@@ -20,7 +20,7 @@ export default function Layout() {
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <Link
-              to="/dashboard"
+              to={isAuthenticated ? "/dashboard" : "/"}
               className="text-xl font-bold tracking-tight"
               style={{ color: "var(--color-amber)" }}
             >
@@ -29,8 +29,9 @@ export default function Layout() {
 
             {/* Nav links */}
             <div className="flex items-center gap-1">
+              {/* Explore — always visible */}
               <NavLink
-                to="/studio"
+                to="/explore"
                 className={({ isActive }) =>
                   `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                     isActive
@@ -44,73 +45,120 @@ export default function Layout() {
                     : undefined
                 }
               >
-                Studio
+                Explore
               </NavLink>
-              <NavLink
-                to="/library"
-                className={({ isActive }) =>
-                  `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    isActive
-                      ? "text-white"
-                      : "text-gray-400 hover:text-white"
-                  }`
-                }
-                style={({ isActive }) =>
-                  isActive
-                    ? { backgroundColor: "var(--color-surface-3)" }
-                    : undefined
-                }
-              >
-                Library
-              </NavLink>
-              <NavLink
-                to="/dashboard"
-                className={({ isActive }) =>
-                  `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    isActive
-                      ? "text-white"
-                      : "text-gray-400 hover:text-white"
-                  }`
-                }
-                style={({ isActive }) =>
-                  isActive
-                    ? { backgroundColor: "var(--color-surface-3)" }
-                    : undefined
-                }
-              >
-                Dashboard
-              </NavLink>
-              <NavLink
-                to="/settings"
-                className={({ isActive }) =>
-                  `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    isActive
-                      ? "text-white"
-                      : "text-gray-400 hover:text-white"
-                  }`
-                }
-                style={({ isActive }) =>
-                  isActive
-                    ? { backgroundColor: "var(--color-surface-3)" }
-                    : undefined
-                }
-              >
-                Settings
-              </NavLink>
+
+              {/* Authenticated-only nav links */}
+              {isAuthenticated && (
+                <>
+                  <NavLink
+                    to="/studio"
+                    className={({ isActive }) =>
+                      `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        isActive
+                          ? "text-white"
+                          : "text-gray-400 hover:text-white"
+                      }`
+                    }
+                    style={({ isActive }) =>
+                      isActive
+                        ? { backgroundColor: "var(--color-surface-3)" }
+                        : undefined
+                    }
+                  >
+                    Studio
+                  </NavLink>
+                  <NavLink
+                    to="/library"
+                    className={({ isActive }) =>
+                      `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        isActive
+                          ? "text-white"
+                          : "text-gray-400 hover:text-white"
+                      }`
+                    }
+                    style={({ isActive }) =>
+                      isActive
+                        ? { backgroundColor: "var(--color-surface-3)" }
+                        : undefined
+                    }
+                  >
+                    Library
+                  </NavLink>
+                  <NavLink
+                    to="/dashboard"
+                    className={({ isActive }) =>
+                      `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        isActive
+                          ? "text-white"
+                          : "text-gray-400 hover:text-white"
+                      }`
+                    }
+                    style={({ isActive }) =>
+                      isActive
+                        ? { backgroundColor: "var(--color-surface-3)" }
+                        : undefined
+                    }
+                  >
+                    Dashboard
+                  </NavLink>
+                  <NavLink
+                    to="/settings"
+                    className={({ isActive }) =>
+                      `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        isActive
+                          ? "text-white"
+                          : "text-gray-400 hover:text-white"
+                      }`
+                    }
+                    style={({ isActive }) =>
+                      isActive
+                        ? { backgroundColor: "var(--color-surface-3)" }
+                        : undefined
+                    }
+                  >
+                    Settings
+                  </NavLink>
+                </>
+              )}
             </div>
 
             {/* User area */}
             <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-400 hidden sm:block">
-                {user?.display_name ?? user?.username}
-              </span>
-              <button
-                onClick={() => void logout()}
-                className="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-400 hover:text-white transition-colors cursor-pointer"
-                style={{ backgroundColor: "var(--color-surface-2)" }}
-              >
-                Sign out
-              </button>
+              {isAuthenticated ? (
+                <>
+                  <span className="text-sm text-gray-400 hidden sm:block">
+                    {user?.display_name ?? user?.username}
+                  </span>
+                  <button
+                    onClick={() => void logout()}
+                    className="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-400 hover:text-white transition-colors cursor-pointer"
+                    style={{ backgroundColor: "var(--color-surface-2)" }}
+                  >
+                    Sign out
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link
+                    to="/login"
+                    className="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-400 hover:text-white transition-colors"
+                    style={{ backgroundColor: "var(--color-surface-2)" }}
+                  >
+                    Sign In
+                  </Link>
+                  <Link
+                    to="/register"
+                    className="px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors"
+                    style={{
+                      backgroundColor: "var(--color-amber)",
+                      color: "var(--color-charcoal)",
+                    }}
+                  >
+                    Get Started
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>
