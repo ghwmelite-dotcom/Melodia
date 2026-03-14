@@ -268,6 +268,7 @@ export const songQueries = {
       ace_step_seed: number;
       ace_step_model: string;
       ace_step_steps: number;
+      variation_count: number;
     }
   ) =>
     db
@@ -280,6 +281,7 @@ export const songQueries = {
           instruments = ?, style_tags = ?, lyrics = ?, lyrics_structured = ?,
           audio_url = ?, audio_format = ?, artwork_url = ?, artwork_prompt = ?,
           waveform_url = ?, ace_step_seed = ?, ace_step_model = ?, ace_step_steps = ?,
+          variation_count = ?,
           generation_completed_at = datetime('now'), updated_at = datetime('now')
         WHERE id = ?`
       )
@@ -290,6 +292,7 @@ export const songQueries = {
         fields.instruments, fields.style_tags, fields.lyrics, fields.lyrics_structured,
         fields.audio_url, fields.audio_format, fields.artwork_url, fields.artwork_prompt,
         fields.waveform_url, fields.ace_step_seed, fields.ace_step_model, fields.ace_step_steps,
+        fields.variation_count,
         id
       )
       .run(),
@@ -336,6 +339,24 @@ export const songQueries = {
         "UPDATE songs SET play_count = play_count + 1, updated_at = datetime('now') WHERE id = ?"
       )
       .bind(id)
+      .run(),
+
+  selectVariation: (db: D1Database, songId: string, variationIndex: number, audioUrl: string) =>
+    db
+      .prepare(
+        `UPDATE songs SET variation_index = ?, audio_url = ?,
+         updated_at = datetime('now') WHERE id = ?`
+      )
+      .bind(variationIndex, audioUrl, songId)
+      .run(),
+
+  updateVariationCount: (db: D1Database, songId: string, count: number) =>
+    db
+      .prepare(
+        `UPDATE songs SET variation_count = ?, variation_index = 0,
+         updated_at = datetime('now') WHERE id = ?`
+      )
+      .bind(count, songId)
       .run(),
 };
 

@@ -105,7 +105,7 @@ const WAV_HEADER_SIZE = 44;
  * keeping one max-amplitude value per peak bucket — never loading the
  * entire file into memory at once.
  */
-async function generateWaveformPeaks(
+export async function generateWaveformPeaks(
   r2: R2Bucket,
   audioKey: string
 ): Promise<number[]> {
@@ -254,10 +254,10 @@ export async function postProcess(
   audioResult: MusicResult,
   artworkResult: ArtworkResult
 ): Promise<void> {
-  // --- 1. Waveform generation (chunked streaming reads) ---
+  // --- 1. Waveform generation (chunked streaming reads, from primary variation) ---
   let waveformUrl = "";
   try {
-    const peaks = await generateWaveformPeaks(env.R2_BUCKET, audioResult.audioKey);
+    const peaks = await generateWaveformPeaks(env.R2_BUCKET, audioResult.audioKeys[0]);
     const waveformKey = `waveforms/${songId}/waveform.json`;
     const waveformJson = JSON.stringify(peaks);
 
@@ -291,13 +291,14 @@ export async function postProcess(
     style_tags: blueprint.style_tags,
     lyrics,
     lyrics_structured: lyricsStructured,
-    audio_url: audioResult.audioKey,
+    audio_url: audioResult.audioKeys[0],
     audio_format: "wav",
     artwork_url: artworkResult.artwork_url,
     artwork_prompt: artworkResult.artwork_prompt,
     waveform_url: waveformUrl,
-    ace_step_seed: audioResult.seed,
+    ace_step_seed: audioResult.seeds[0],
     ace_step_model: "turbo",
     ace_step_steps: 8,
+    variation_count: audioResult.variationCount,
   });
 }
