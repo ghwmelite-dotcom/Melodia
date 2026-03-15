@@ -8,6 +8,7 @@ import { generateLyrics, refineLyrics } from "../services/lyrics.service.js";
 import { generateMusic } from "../services/music.service.js";
 import { generateArtwork } from "../services/artwork.service.js";
 import { postProcess } from "../services/postprocess.service.js";
+import { analyzeReference, type ReferenceAnalysis } from "../services/reference.service.js";
 import { ulid } from "ulidx";
 
 // ---------------------------------------------------------------------------
@@ -15,6 +16,7 @@ import { ulid } from "ulidx";
 // ---------------------------------------------------------------------------
 
 type GenerationStage =
+  | "reference"
   | "blueprint"
   | "lyrics"
   | "refinement"
@@ -55,6 +57,7 @@ type StartBody = {
     batchSize?: number;
     cachedBlueprint?: SongBlueprint;
     cachedLyrics?: string;
+    referenceAudioKey?: string;
   };
 };
 
@@ -207,6 +210,20 @@ export class SongGenerationSession {
   // startGeneration — full pipeline
   // --------------------------------------------------------------------------
 
+  // --------------------------------------------------------------------------
+  // uint8ToBase64 — chunked base64 encoding safe for large files (> 100KB)
+  // --------------------------------------------------------------------------
+
+  private uint8ToBase64(bytes: Uint8Array): string {
+    let binary = "";
+    const chunkSize = 8192;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      const chunk = bytes.subarray(i, i + chunkSize);
+      binary += String.fromCharCode(...chunk);
+    }
+    return btoa(binary);
+  }
+
   private async startGeneration(
     songId: string,
     userPrompt: string,
@@ -220,12 +237,38 @@ export class SongGenerationSession {
     // Initialise state
     const initialState: GenerationState = {
       songId,
-      currentStage: "blueprint",
+      currentStage: options?.referenceAudioKey ? "reference" : "blueprint",
       stages: {},
     };
     await this.state.storage.put("generationState", initialState);
 
     try {
+      // ----------------------------------------------------------------
+      // Stage 0: Reference Analysis (optional — only when reference provided)
+      // ----------------------------------------------------------------
+      let referenceAnalysis: ReferenceAnalysis | undefined;
+      let referenceAudioBase64: string | undefined;
+
+      if (options?.referenceAudioKey) {
+        await this.updateStage("reference", "in_progress");
+        await songQueries.updateStatus(this.env.DB, songId, "generating_lyrics");
+
+        const refObject = await this.env.R2_BUCKET.get(options.referenceAudioKey);
+        if (refObject) {
+          const audioBytes = await refObject.arrayBuffer();
+          referenceAnalysis = await analyzeReference(this.env.AI, audioBytes);
+
+          // Chunked base64 encoding — safe for files > 100KB
+          const uint8 = new Uint8Array(audioBytes);
+          referenceAudioBase64 = this.uint8ToBase64(uint8);
+        }
+
+        await this.updateStage("reference", "completed", {
+          genre: referenceAnalysis?.detected_genre,
+          mood: referenceAnalysis?.detected_mood,
+        });
+      }
+
       // ----------------------------------------------------------------
       // Stage 1: Blueprint
       // ----------------------------------------------------------------
@@ -243,7 +286,13 @@ export class SongGenerationSession {
           mood: blueprint.mood,
         });
       } else {
-        blueprint = await generateBlueprint(this.env.AI, userPrompt, {
+        // Enrich prompt with reference analysis if available
+        let enrichedPrompt = userPrompt;
+        if (referenceAnalysis) {
+          enrichedPrompt += `\n\nREFERENCE TRACK ANALYSIS:\nStyle: ${referenceAnalysis.style_description}\nTags: ${referenceAnalysis.extracted_tags}\nGenre: ${referenceAnalysis.detected_genre}, Mood: ${referenceAnalysis.detected_mood}\nVocal: ${referenceAnalysis.vocal_character}, Instruments: ${referenceAnalysis.instrumentation}\nBPM estimate: ${referenceAnalysis.estimated_bpm}\n\nUse this as creative inspiration. Match the energy and production style while creating something completely original.`;
+        }
+
+        blueprint = await generateBlueprint(this.env.AI, enrichedPrompt, {
           genre: options?.genre,
           mood: options?.mood,
           language: options?.language,
@@ -270,6 +319,12 @@ export class SongGenerationSession {
         await this.updateStage("lyrics", "completed");
         await this.updateStage("refinement", "completed", { scores: {} });
       } else {
+        // Enrich blueprint song_concept with reference transcription if available
+        if (referenceAnalysis?.transcription) {
+          blueprint.song_concept = (blueprint.song_concept || "") +
+            ` The reference track had lyrics with this theme: "${referenceAnalysis.transcription.slice(0, 500)}". Draw thematic inspiration but write completely original lyrics.`;
+        }
+
         const rawLyrics = await generateLyrics(this.env.AI, blueprint);
         await this.updateStage("lyrics", "completed");
 
@@ -291,7 +346,7 @@ export class SongGenerationSession {
       // Scale timeout by batchSize (capped at 2x) to allow enough time for all variations
       const musicTimeoutMs = STAGE_TIMEOUTS.MUSIC * Math.min(batchSize, 2);
 
-      const audioResult = await generateMusic(this.env, blueprint, lyrics, songId, batchSize, musicTimeoutMs);
+      const audioResult = await generateMusic(this.env, blueprint, lyrics, songId, batchSize, musicTimeoutMs, referenceAudioBase64);
       await this.updateStage("music", "completed", {
         audioKeys: audioResult.audioKeys,
         variation_count: audioResult.variationCount,
