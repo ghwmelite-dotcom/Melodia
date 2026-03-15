@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS songs (
   waveform_url TEXT,
   artwork_url TEXT,
   artwork_prompt TEXT,
+  reference_url TEXT,
   ace_step_seed INTEGER,
   ace_step_model TEXT DEFAULT 'turbo',
   ace_step_steps INTEGER DEFAULT 8,

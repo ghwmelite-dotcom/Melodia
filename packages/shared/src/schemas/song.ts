@@ -90,5 +90,6 @@ export const SongDetailSchema = v.object({
   generation_completed_at: v.nullable(v.string()),
   variation_index: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0)), 0),
   variation_count: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1)), 1),
+  reference_url: v.optional(v.nullable(v.string())),
 });
 export type SongDetail = v.InferOutput<typeof SongDetailSchema>;

@@ -123,6 +123,7 @@ export type AceStepModel = (typeof ACE_STEP_MODELS)[number];
 
 // Stage timeouts (milliseconds)
 export const STAGE_TIMEOUTS = {
+  REFERENCE: 30_000,
   BLUEPRINT: 30_000,
   LYRICS: 30_000,
   REFINEMENT: 30_000,
@@ -136,4 +137,5 @@ export const AI_MODELS = {
   LYRICS_PRIMARY: "@cf/meta/llama-4-scout-17b-16e-instruct",
   LYRICS_FALLBACK: "@cf/qwen/qwen3-30b-a3b-fp8",
   ARTWORK: "@cf/black-forest-labs/flux-2-dev",
+  WHISPER: "@cf/openai/whisper",
 } as const;
