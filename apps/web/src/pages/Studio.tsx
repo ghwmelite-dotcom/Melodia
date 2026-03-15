@@ -4,6 +4,7 @@ import { useAuth } from "../hooks/useAuth.js";
 import { useApi } from "../hooks/useApi.js";
 import { useSongs } from "../hooks/useSongs.js";
 import { GenreSelector } from "../components/studio/GenreSelector.js";
+import { ReferenceUpload } from "../components/studio/ReferenceUpload.js";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -45,6 +46,7 @@ export default function Studio() {
   const [language, setLanguage] = useState<string | undefined>(undefined);
   const [duration, setDuration] = useState(180);
   const [promptFocused, setPromptFocused] = useState(false);
+  const [referenceFile, setReferenceFile] = useState<File | null>(null);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -58,14 +60,16 @@ export default function Studio() {
           mood: mood.trim() || undefined,
           language: language || undefined,
           duration: duration !== 180 ? duration : undefined,
+          referenceFile: referenceFile ?? undefined,
         })
       );
 
       if (result) {
+        setReferenceFile(null);
         void navigate(`/studio/song/${result.song_id}`);
       }
     },
-    [call, songs, prompt, genre, mood, language, duration, navigate]
+    [call, songs, prompt, genre, mood, language, duration, referenceFile, navigate]
   );
 
   const durationPercent = ((duration - 30) / (600 - 30)) * 100;
@@ -205,6 +209,9 @@ export default function Studio() {
               </span>
             </div>
           </div>
+
+          {/* Reference track upload */}
+          <ReferenceUpload file={referenceFile} onFileSelect={setReferenceFile} />
 
           {/* Advanced options toggle */}
           <div>

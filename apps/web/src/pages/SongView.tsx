@@ -197,6 +197,7 @@ export default function SongView() {
   const [publishToggling, setPublishToggling] = useState(false);
   const [playingVariation, setPlayingVariation] = useState(0);
   const [isRegenerateOpen, setIsRegenerateOpen] = useState(false);
+  const [referenceBlobUrl, setReferenceBlobUrl] = useState<string | null>(null);
 
   const fetchSong = useCallback(async () => {
     if (!id) return;
@@ -219,6 +220,23 @@ export default function SongView() {
     await fetchSong();
     await refresh();
   }, [fetchSong, refresh]);
+
+  // Fetch reference audio blob when song has a reference_url
+  useEffect(() => {
+    const referenceUrl = (song as (SongDetail & { reference_url?: string | null }) | null)?.reference_url;
+    if (!referenceUrl) return;
+    let objectUrl: string | null = null;
+    songs.getReferenceBlob(song!.id).then((blob) => {
+      objectUrl = URL.createObjectURL(blob);
+      setReferenceBlobUrl(objectUrl);
+    }).catch(() => {
+      // Non-critical — silently ignore
+    });
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [(song as (SongDetail & { reference_url?: string | null }) | null)?.reference_url]);
 
   const handleDelete = useCallback(async () => {
     if (!id) return;
@@ -582,6 +600,31 @@ export default function SongView() {
                 </span>
               )}
             </div>
+
+            {/* Inspired by reference track */}
+            {(song as SongDetail & { reference_url?: string | null }).reference_url && (
+              <div
+                className="flex items-center gap-3 px-4 py-2.5 rounded-xl"
+                style={{
+                  background: "rgba(240,165,0,0.06)",
+                  border: "1px solid rgba(240,165,0,0.18)",
+                }}
+              >
+                <span style={{ fontSize: "1rem" }} aria-hidden="true">🎵</span>
+                <span className="text-sm" style={{ color: "rgba(156,163,175,0.8)", fontFamily: "var(--font-body)" }}>
+                  Inspired by reference track
+                </span>
+                {referenceBlobUrl && (
+                  <audio
+                    controls
+                    src={referenceBlobUrl}
+                    className="flex-1"
+                    style={{ height: "32px", maxWidth: "200px" }}
+                    aria-label="Reference track audio"
+                  />
+                )}
+              </div>
+            )}
 
             {/* Action row */}
             <div className="pt-1 flex flex-wrap items-center gap-2">

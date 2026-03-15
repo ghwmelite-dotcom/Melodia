@@ -11,7 +11,7 @@ type GenerationProgressProps = {
 
 // ─── Stage definitions ─────────────────────────────────────────────────────────
 
-const STAGES = [
+const BASE_STAGES = [
   { key: "blueprint", label: "Creating Blueprint", symbol: "🗺️" },
   { key: "lyrics", label: "Writing Lyrics", symbol: "✍️" },
   { key: "refinement", label: "Refining Lyrics", symbol: "✨" },
@@ -21,7 +21,12 @@ const STAGES = [
   { key: "completed", label: "Complete", symbol: "🎉" },
 ] as const;
 
-type StageKey = (typeof STAGES)[number]["key"];
+const REFERENCE_STAGE = { key: "reference", label: "Analyzing Reference", symbol: "🎵" } as const;
+
+// Legacy constant kept for type derivation
+const STAGES = BASE_STAGES;
+
+type StageKey = (typeof BASE_STAGES)[number]["key"] | "reference";
 
 type StageDisplayStatus = "pending" | "in_progress" | "completed" | "failed";
 
@@ -298,6 +303,14 @@ export function GenerationProgress({ songId, onComplete }: GenerationProgressPro
     };
   }, [connectionStatus, isComplete, isFailed, doPoll]);
 
+  // ── Determine if a reference stage is present (from WebSocket or song data) ──
+  const hasReference = stages.some((s) => s.stage === "reference");
+
+  // ── Build dynamic stage list ─────────────────────────────────────────────────
+  const dynamicStages = hasReference
+    ? [REFERENCE_STAGE, ...BASE_STAGES]
+    : [...BASE_STAGES];
+
   // ── Build per-stage display status ──────────────────────────────────────────
 
   let stageStatuses: Record<string, StageDisplayStatus>;
@@ -314,7 +327,7 @@ export function GenerationProgress({ songId, onComplete }: GenerationProgressPro
       pollResult[poll.inProgress] = "in_progress";
     }
     if (poll.failed) {
-      for (const s of STAGES) {
+      for (const s of dynamicStages) {
         if (pollResult[s.key] === "in_progress") {
           pollResult[s.key] = "failed";
         }
@@ -326,7 +339,7 @@ export function GenerationProgress({ songId, onComplete }: GenerationProgressPro
   }
 
   // Count completed stages for ambient gradient
-  const completedCount = STAGES.filter((s) => stageStatuses[s.key] === "completed").length;
+  const completedCount = dynamicStages.filter((s) => stageStatuses[s.key] === "completed").length;
 
   // ── Connection status badge ──────────────────────────────────────────────────
   const wsStatusBadge =
@@ -376,7 +389,7 @@ export function GenerationProgress({ songId, onComplete }: GenerationProgressPro
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            background: progressGradient(completedCount, STAGES.length),
+            background: progressGradient(completedCount, dynamicStages.length),
             transition: "background 1s ease",
           }}
           aria-hidden="true"
@@ -459,7 +472,7 @@ export function GenerationProgress({ songId, onComplete }: GenerationProgressPro
               <div
                 className="h-full rounded-full transition-all duration-700 ease-out"
                 style={{
-                  width: `${(completedCount / STAGES.length) * 100}%`,
+                  width: `${(completedCount / dynamicStages.length) * 100}%`,
                   background: isComplete
                     ? "linear-gradient(90deg, var(--color-amber) 0%, var(--color-amber-light) 100%)"
                     : "linear-gradient(90deg, var(--color-amber) 0%, rgba(240,165,0,0.6) 100%)",
@@ -468,14 +481,14 @@ export function GenerationProgress({ songId, onComplete }: GenerationProgressPro
               />
             </div>
             <p className="text-right text-xs" style={{ color: "rgba(156,163,175,0.6)" }}>
-              {completedCount}/{STAGES.length} stages
+              {completedCount}/{dynamicStages.length} stages
             </p>
           </div>
         )}
 
         {/* Stage list */}
         <ol className="space-y-3">
-          {STAGES.map(({ key, label, symbol }, index) => {
+          {dynamicStages.map(({ key, label, symbol }, index) => {
             const displayStatus: StageDisplayStatus = stageStatuses[key] ?? "pending";
             const isActive = displayStatus === "in_progress";
 
