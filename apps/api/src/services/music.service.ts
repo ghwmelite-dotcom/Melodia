@@ -105,7 +105,8 @@ async function generateRealMusic(
   lyrics: string,
   songId: string,
   batchSize: number,
-  timeoutMs?: number
+  timeoutMs?: number,
+  referenceAudioBase64?: string
 ): Promise<MusicResult> {
   const musicTimeout = timeoutMs ?? STAGE_TIMEOUTS.MUSIC * Math.min(batchSize, 2);
 
@@ -125,20 +126,61 @@ async function generateRealMusic(
   for (let i = 0; i < batchSize; i++) {
     const signal = AbortSignal.timeout(musicTimeout);
 
-    const prompt = `tags: ${blueprint.style_tags}\nlyrics: ${lyrics}`;
+    const textContent = `tags: ${blueprint.style_tags}\nlyrics: ${lyrics}`;
 
-    const payload = {
+    const multimodalMessages = referenceAudioBase64
+      ? [
+          {
+            role: "user" as const,
+            content: [
+              { type: "text", text: textContent },
+              {
+                type: "audio_url",
+                audio_url: { url: `data:audio/mpeg;base64,${referenceAudioBase64}` },
+              },
+            ],
+          },
+        ]
+      : [{ role: "user" as const, content: textContent }];
+
+    const textOnlyMessages = [{ role: "user" as const, content: textContent }];
+
+    const basePayload = {
       model: "acestep-5Hz-lm-4B",
-      messages: [{ role: "user", content: prompt }],
       max_tokens: 4096,
     };
 
-    const response = await fetch(`${env.ACE_STEP_API_URL}/v1/chat/completions`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(payload),
-      signal,
-    });
+    let response: Response;
+
+    if (referenceAudioBase64) {
+      try {
+        response = await fetch(`${env.ACE_STEP_API_URL}/v1/chat/completions`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ ...basePayload, messages: multimodalMessages }),
+          signal,
+        });
+        if (!response.ok) {
+          throw new Error(`ACE-Step multimodal returned ${response.status}`);
+        }
+      } catch {
+        console.warn("[MusicService] ACE-Step rejected audio reference, falling back to text-only");
+        const fallbackSignal = AbortSignal.timeout(musicTimeout);
+        response = await fetch(`${env.ACE_STEP_API_URL}/v1/chat/completions`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ ...basePayload, messages: textOnlyMessages }),
+          signal: fallbackSignal,
+        });
+      }
+    } else {
+      response = await fetch(`${env.ACE_STEP_API_URL}/v1/chat/completions`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ ...basePayload, messages: textOnlyMessages }),
+        signal,
+      });
+    }
 
     if (!response.ok) {
       const errText = await response.text().catch(() => "unknown error");
@@ -236,10 +278,11 @@ export async function generateMusic(
   lyrics: string,
   songId: string,
   batchSize = 1,
-  timeoutMs?: number
+  timeoutMs?: number,
+  referenceAudioBase64?: string
 ): Promise<MusicResult> {
   if (env.ACE_STEP_API_URL) {
-    return generateRealMusic(env, blueprint, lyrics, songId, batchSize, timeoutMs);
+    return generateRealMusic(env, blueprint, lyrics, songId, batchSize, timeoutMs, referenceAudioBase64);
   }
   return generateMockMusic(env, blueprint, songId, batchSize);
 }
