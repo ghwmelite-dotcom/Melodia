@@ -4,7 +4,11 @@
       "Bash(cd:*)",
       "Bash(ls:*)",
       "Bash(sleep:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Read(//c/Users/USER/OneDrive - Smart Workplace/Desktop/Projects/Melodia __NEW_LINE_f969ccabcc1d2000__ echo === Deploying API === cd apps/**)",
+      "Bash(npx wrangler:*)",
+      "Read(//c/Users/USER/OneDrive - Smart Workplace/Desktop/Projects/Melodia/**)",
+      "Bash(VITE_API_URL=https://melodia-api.ghwmelite.workers.dev npm run build)"
     ]
   }
 }
