@@ -152,22 +152,79 @@ async function ensureCreditsReset(
 
 // ----------------------------------------------------------------------------
 // POST /generate  (protected)
+// Accepts either application/json (backward compatible) or multipart/form-data
+// (when a reference audio file is attached).
 // ----------------------------------------------------------------------------
 songs.post("/generate", authGuard(), async (c) => {
-  const body = await c.req.json().catch(() => {
-    throw new AppError("VALIDATION_ERROR", "Invalid JSON body", 400);
-  });
+  const contentType = c.req.header("Content-Type") ?? "";
 
-  const result = v.safeParse(GenerateSongSchema, body);
-  if (!result.success) {
-    throw new AppError(
-      "VALIDATION_ERROR",
-      result.issues.map((i) => i.message).join(", "),
-      400
-    );
+  let prompt: string;
+  let genre: string | undefined;
+  let mood: string | undefined;
+  let language: string | undefined;
+  let duration: number | undefined;
+  let referenceFile: File | null = null;
+
+  if (contentType.includes("multipart/form-data")) {
+    const body = await c.req.parseBody().catch(() => {
+      throw new AppError("VALIDATION_ERROR", "Invalid multipart body", 400);
+    });
+
+    prompt = (body.prompt as string | undefined) ?? "";
+    genre = (body.genre as string | undefined) || undefined;
+    mood = (body.mood as string | undefined) || undefined;
+    language = (body.language as string | undefined) || undefined;
+    duration = body.duration ? Number(body.duration) : undefined;
+    referenceFile = (body.reference as File | null | undefined) ?? null;
+
+    // Validate parsed fields via shared schema
+    const result = v.safeParse(GenerateSongSchema, { prompt, genre, mood, language, duration });
+    if (!result.success) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        result.issues.map((i) => i.message).join(", "),
+        400
+      );
+    }
+    // Re-assign from validated output (coercion etc.)
+    prompt = result.output.prompt;
+    genre = result.output.genre;
+    mood = result.output.mood;
+    language = result.output.language;
+    duration = result.output.duration;
+  } else {
+    // JSON mode (backward compatible)
+    const body = await c.req.json().catch(() => {
+      throw new AppError("VALIDATION_ERROR", "Invalid JSON body", 400);
+    });
+
+    const result = v.safeParse(GenerateSongSchema, body);
+    if (!result.success) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        result.issues.map((i) => i.message).join(", "),
+        400
+      );
+    }
+
+    prompt = result.output.prompt;
+    genre = result.output.genre;
+    mood = result.output.mood;
+    language = result.output.language;
+    duration = result.output.duration;
   }
 
-  const { prompt, genre, mood, language, duration } = result.output;
+  // Validate reference file if provided
+  if (referenceFile) {
+    const validTypes = ["audio/mpeg", "audio/wav", "audio/x-wav", "audio/wave"];
+    if (!validTypes.includes(referenceFile.type)) {
+      throw new AppError("VALIDATION_ERROR", "Reference must be MP3 or WAV", 400);
+    }
+    if (referenceFile.size > 10 * 1024 * 1024) {
+      throw new AppError("VALIDATION_ERROR", "Reference file must be under 10MB", 400);
+    }
+  }
+
   const userId = c.get("userId");
   const songId = ulid();
   const txId = ulid();
@@ -245,6 +302,18 @@ songs.post("/generate", authGuard(), async (c) => {
     ]);
   }
 
+  // Upload reference audio to R2 if provided
+  let referenceAudioKey: string | undefined;
+  if (referenceFile) {
+    const ext = referenceFile.type.includes("wav") ? "wav" : "mp3";
+    referenceAudioKey = `reference/${songId}/reference.${ext}`;
+    const arrayBuffer = await referenceFile.arrayBuffer();
+    await c.env.R2_BUCKET.put(referenceAudioKey, arrayBuffer, {
+      httpMetadata: { contentType: referenceFile.type },
+    });
+    await songQueries.updateReferenceUrl(c.env.DB, songId, referenceAudioKey);
+  }
+
   // Trigger Durable Object pipeline
   const doId = c.env.SONG_SESSION.idFromName(songId);
   const stub = c.env.SONG_SESSION.get(doId);
@@ -260,7 +329,7 @@ songs.post("/generate", authGuard(), async (c) => {
         songId,
         userPrompt: prompt,
         userId,
-        options: { genre, mood, language, duration, batchSize },
+        options: { genre, mood, language, duration, batchSize, referenceAudioKey },
       }),
     })
   );
@@ -727,6 +796,36 @@ songs.get("/:id/variations", optionalAuthGuard(), async (c) => {
 });
 
 // ----------------------------------------------------------------------------
+// GET /:id/reference  — stream reference audio from R2 (protected — owner only)
+// Must be registered before GET /:id wildcard.
+// ----------------------------------------------------------------------------
+songs.get("/:id/reference", authGuard(), async (c) => {
+  const userId = c.get("userId");
+  const { id } = c.req.param();
+
+  const song = (await songQueries.findByIdAndUser(c.env.DB, id, userId)) as {
+    reference_url: string | null;
+  } | null;
+
+  if (!song || !song.reference_url) {
+    throw new AppError("NOT_FOUND", "Reference not found", 404);
+  }
+
+  const r2Object = await c.env.R2_BUCKET.get(song.reference_url);
+  if (!r2Object) {
+    throw new AppError("NOT_FOUND", "Reference file not found", 404);
+  }
+
+  const contentType = song.reference_url.endsWith(".wav") ? "audio/wav" : "audio/mpeg";
+  return new Response(r2Object.body, {
+    headers: {
+      "Content-Type": contentType,
+      "Content-Length": String(r2Object.size),
+    },
+  });
+});
+
+// ----------------------------------------------------------------------------
 // GET /:id  — full song detail (optionally authenticated)
 // ----------------------------------------------------------------------------
 songs.get("/:id", optionalAuthGuard(), async (c) => {
@@ -876,8 +975,8 @@ songs.delete("/:id", authGuard(), async (c) => {
     throw new AppError("NOT_FOUND", "Song not found", 404);
   }
 
-  // Delete R2 objects by prefix for all three asset types
-  const prefixes = [`audio/${id}/`, `artwork/${id}/`, `waveforms/${id}/`];
+  // Delete R2 objects by prefix for all asset types including reference
+  const prefixes = [`audio/${id}/`, `artwork/${id}/`, `waveforms/${id}/`, `reference/${id}/`];
 
   await Promise.all(
     prefixes.map(async (prefix) => {

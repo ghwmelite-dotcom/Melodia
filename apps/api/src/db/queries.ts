@@ -269,6 +269,7 @@ export const songQueries = {
       ace_step_model: string;
       ace_step_steps: number;
       variation_count: number;
+      reference_url?: string | null;
     }
   ) =>
     db
@@ -281,7 +282,7 @@ export const songQueries = {
           instruments = ?, style_tags = ?, lyrics = ?, lyrics_structured = ?,
           audio_url = ?, audio_format = ?, artwork_url = ?, artwork_prompt = ?,
           waveform_url = ?, ace_step_seed = ?, ace_step_model = ?, ace_step_steps = ?,
-          variation_count = ?,
+          variation_count = ?, reference_url = COALESCE(?, reference_url),
           generation_completed_at = datetime('now'), updated_at = datetime('now')
         WHERE id = ?`
       )
@@ -292,9 +293,15 @@ export const songQueries = {
         fields.instruments, fields.style_tags, fields.lyrics, fields.lyrics_structured,
         fields.audio_url, fields.audio_format, fields.artwork_url, fields.artwork_prompt,
         fields.waveform_url, fields.ace_step_seed, fields.ace_step_model, fields.ace_step_steps,
-        fields.variation_count,
+        fields.variation_count, fields.reference_url ?? null,
         id
       )
+      .run(),
+
+  updateReferenceUrl: (db: D1Database, songId: string, referenceUrl: string) =>
+    db
+      .prepare("UPDATE songs SET reference_url = ?, updated_at = datetime('now') WHERE id = ?")
+      .bind(referenceUrl, songId)
       .run(),
 
   updateFailed: (db: D1Database, id: string) =>
