@@ -112,6 +112,52 @@ class ApiClient {
     return this.request<T>(path, { ...options, method: "PATCH", body });
   }
 
+  async postForm<T>(path: string, formData: FormData, retry = true): Promise<T> {
+    // Do NOT set Content-Type — browser auto-sets multipart/form-data with boundary
+    const headers: Record<string, string> = {};
+    if (this.accessToken) {
+      headers["Authorization"] = `Bearer ${this.accessToken}`;
+    }
+
+    const response = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      credentials: "include",
+      headers,
+      body: formData,
+    });
+
+    // Handle 401 with refresh retry
+    if (response.status === 401 && retry && this.onUnauthorized) {
+      const refreshed = await this.onUnauthorized();
+      if (refreshed) {
+        return this.postForm<T>(path, formData, false);
+      }
+    }
+
+    if (!response.ok) {
+      let errorData: unknown;
+      try {
+        errorData = await response.json();
+      } catch {
+        errorData = null;
+      }
+      const message =
+        typeof errorData === "object" &&
+        errorData !== null &&
+        "error" in errorData &&
+        typeof (errorData as { error: unknown }).error === "string"
+          ? (errorData as { error: string }).error
+          : response.statusText;
+      throw new ApiError(response.status, message, errorData);
+    }
+
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
+    return response.json() as Promise<T>;
+  }
+
   async getBlob(path: string, retry = true): Promise<Blob> {
     const headers: Record<string, string> = {};
     if (this.accessToken) {

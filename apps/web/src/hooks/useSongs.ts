@@ -76,9 +76,28 @@ interface GetVariationsResponse {
 
 export function useSongs() {
   return {
-    generate: async (input: GenerateSongInput): Promise<{ song_id: string }> => {
-      const res = await api.post<GenerateResponse>("/api/songs/generate", input);
+    generate: async (input: GenerateSongInput & { referenceFile?: File }): Promise<{ song_id: string }> => {
+      const { referenceFile, ...fields } = input;
+
+      if (referenceFile) {
+        const formData = new FormData();
+        formData.append("prompt", fields.prompt);
+        if (fields.genre) formData.append("genre", fields.genre);
+        if (fields.mood) formData.append("mood", fields.mood);
+        if (fields.language) formData.append("language", fields.language);
+        if (fields.duration) formData.append("duration", String(fields.duration));
+        formData.append("reference", referenceFile);
+        const res = await api.postForm<GenerateResponse>("/api/songs/generate", formData);
+        return { song_id: res.song_id };
+      }
+
+      // No reference — use JSON (backward compatible)
+      const res = await api.post<GenerateResponse>("/api/songs/generate", fields);
       return { song_id: res.song_id };
+    },
+
+    getReferenceBlob: async (songId: string): Promise<Blob> => {
+      return api.getBlob(`/api/songs/${songId}/reference`);
     },
 
     getSong: async (id: string): Promise<SongDetail> => {
