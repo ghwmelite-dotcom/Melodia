@@ -90,5 +90,14 @@ export async function verifyWebhookSignature(
   const hex = Array.from(sig)
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
-  return hex === signature;
+
+  // Constant-time comparison to prevent timing side-channel attacks
+  if (hex.length !== signature.length) return false;
+  const a = new TextEncoder().encode(hex);
+  const b = new TextEncoder().encode(signature);
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a[i] ^ b[i];
+  }
+  return result === 0;
 }

@@ -172,11 +172,8 @@ auth.post("/login", async (c) => {
     );
   }
 
-  if (attemptCount === 0) {
-    await c.env.KV.put(rateLimitKey, "1", { expirationTtl: 3600 });
-  } else {
-    await c.env.KV.put(rateLimitKey, String(attemptCount + 1));
-  }
+  // Always include TTL — KV put without TTL removes existing TTL (permanent lockout bug)
+  await c.env.KV.put(rateLimitKey, String(attemptCount + 1), { expirationTtl: 3600 });
 
   const user = (await userQueries.findByEmail(c.env.DB, email)) as Record<
     string,

@@ -29,12 +29,8 @@ export async function sendOtp(env: Env, phone: string): Promise<void> {
     );
   }
 
-  // Only set TTL on first request to avoid window reset
-  if (count === 0) {
-    await env.KV.put(rateLimitKey, "1", { expirationTtl: 3600 });
-  } else {
-    await env.KV.put(rateLimitKey, String(count + 1));
-  }
+  // Always include TTL — KV put without TTL removes existing TTL (permanent lockout bug)
+  await env.KV.put(rateLimitKey, String(count + 1), { expirationTtl: 3600 });
 
   // Invalidate any previous unused OTPs for this phone
   await otpQueries.invalidatePrevious(env.DB, phone);

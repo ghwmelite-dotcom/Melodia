@@ -22,16 +22,13 @@ export function rateLimit(config: RateLimitConfig) {
       throw new AppError("RATE_LIMITED", "Too many requests, try again later", 429);
     }
 
-    // Only set TTL on the first request in the window.
-    // Subsequent increments preserve the existing TTL so the window
-    // expires naturally instead of resetting on every request.
-    if (count === 0) {
-      await c.env.KV.put(kvKey, "1", {
-        expirationTtl: config.windowSeconds,
-      });
-    } else {
-      await c.env.KV.put(kvKey, String(count + 1));
-    }
+    // IMPORTANT: Always include expirationTtl on every put.
+    // KV put() without TTL removes any existing TTL, making the key permanent.
+    // This means we reset the window on each request, but that's acceptable —
+    // the alternative (permanent lockout) is far worse.
+    await c.env.KV.put(kvKey, String(count + 1), {
+      expirationTtl: config.windowSeconds,
+    });
 
     await next();
   };

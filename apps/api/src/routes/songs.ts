@@ -925,7 +925,11 @@ songs.post("/:id/like", authGuard(), async (c) => {
     throw new AppError("FORBIDDEN", "Cannot like your own song", 403);
   }
 
-  await likeQueries.like(c.env.DB, userId, song.id);
+  // Insert like — only increment count if insert succeeded (prevents double-increment on duplicate)
+  const insertResult = await likeQueries.insertLike(c.env.DB, userId, song.id);
+  if (insertResult.meta.changes === 1) {
+    await likeQueries.incrementLikeCount(c.env.DB, song.id);
+  }
 
   // Fetch updated like_count
   const updated = (await songQueries.findByIdPublic(c.env.DB, id)) as {

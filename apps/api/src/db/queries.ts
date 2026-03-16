@@ -416,19 +416,22 @@ export const exploreQueries = {
 };
 
 export const likeQueries = {
-  like: (db: D1Database, userId: string, songId: string) =>
-    db.batch([
-      db
-        .prepare(
-          "INSERT OR IGNORE INTO song_likes (user_id, song_id) VALUES (?, ?)"
-        )
-        .bind(userId, songId),
-      db
-        .prepare(
-          "UPDATE songs SET like_count = like_count + 1, updated_at = datetime('now') WHERE id = ?"
-        )
-        .bind(songId),
-    ]),
+  // Two-step like: insert first, only increment count if insert succeeded (not a duplicate)
+  insertLike: (db: D1Database, userId: string, songId: string) =>
+    db
+      .prepare(
+        "INSERT OR IGNORE INTO song_likes (user_id, song_id) VALUES (?, ?)"
+      )
+      .bind(userId, songId)
+      .run(),
+
+  incrementLikeCount: (db: D1Database, songId: string) =>
+    db
+      .prepare(
+        "UPDATE songs SET like_count = like_count + 1, updated_at = datetime('now') WHERE id = ?"
+      )
+      .bind(songId)
+      .run(),
 
   unlike: (db: D1Database, userId: string, songId: string) =>
     db
